@@ -19,6 +19,7 @@ module purge && module load slurm mps
 SCR=/scratch/m000211/$USER
 export HF_HOME="$SCR/hf" TORCH_HOME="$SCR/torch" XDG_CACHE_HOME="$SCR/xdgcache"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+export PYG_DATA_ROOT=/projects/m000211/data/pyg
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-16}
 mkdir -p "$SCR/logs"
 

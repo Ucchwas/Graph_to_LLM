@@ -61,10 +61,13 @@ def collate(graphs: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.T
     return DenseBatch(A_obs, A_true, sup, nmask, X)
 
 
-def load_cora(root: str = "data/pyg"):
+def load_cora(root: str | None = None):
+    import os
+
     from torch_geometric.datasets import Planetoid
     from torch_geometric.transforms import NormalizeFeatures
 
+    root = root or os.environ.get("PYG_DATA_ROOT", "data/pyg")
     return Planetoid(root, "Cora", transform=NormalizeFeatures())[0]
 
 

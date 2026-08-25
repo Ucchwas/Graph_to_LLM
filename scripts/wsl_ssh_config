@@ -1,0 +1,15 @@
+Host marlowe
+    HostName login.marlowe.stanford.edu
+    User uutsha
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-%r@%h-%p
+    ControlPersist 8h
+    ServerAliveInterval 60
+    ServerAliveCountMax 5
+Host sherlock
+    HostName login.sherlock.stanford.edu
+    User uutsha
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-%r@%h-%p
+    ControlPersist 4h
+    ServerAliveInterval 60
