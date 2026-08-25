@@ -16,6 +16,7 @@ ROWS = {
     **{k: heuristics.make_score_fn(k) for k in heuristics.HEURISTICS},
     "feature_only_logreg": feature_only.score_fn,
     "gae": gae.make_score_fn("gae"),
+    "gae_600ep": gae.make_score_fn("gae", fixed_epochs=600),
     "vgae": gae.make_score_fn("vgae"),
     "gat": gae.make_score_fn("gat"),
 }
