@@ -1,7 +1,7 @@
 """Adjacency-row tokens into a randomly initialised transformer, trained from
 scratch: the control that isolates what a pretrained LLM contributes (Phase-2
-row 4). Input = raw adjacency rows only, matching encoder E1. No positional
-embeddings: at fixed N the row itself carries identity.
+row 4). Input = raw adjacency rows only, matching encoder E1 (linear projection
++ LayerNorm). No positional embeddings: at fixed N the row itself carries identity.
 """
 import torch
 from torch import nn
@@ -13,10 +13,10 @@ from g2l.metrics import evaluate_pairs
 class ScratchAdjTransformer(nn.Module):
     def __init__(self, n_nodes, d_model=256, nhead=8, num_layers=4, dropout=0.1):
         super().__init__()
-        self.inp = nn.Linear(n_nodes, d_model)
+        self.inp = nn.Sequential(nn.Linear(n_nodes, d_model), nn.LayerNorm(d_model))
         layer = nn.TransformerEncoderLayer(d_model, nhead, 4 * d_model, dropout,
                                            batch_first=True, norm_first=True, activation="gelu")
-        self.enc = nn.TransformerEncoder(layer, num_layers)
+        self.enc = nn.TransformerEncoder(layer, num_layers, enable_nested_tensor=False)
         self.W = nn.Parameter(torch.eye(d_model) * 0.1)
 
     def forward(self, A):
@@ -24,7 +24,9 @@ class ScratchAdjTransformer(nn.Module):
         return h @ self.W @ h.T
 
 
-def train_one(data, split, device, d_model, lr, max_epochs=300, patience=30, seed=0):
+def train_one(data, split, device, d_model, lr, max_epochs=2000, patience=200, warmup=100, seed=0):
+    """Returns (test logits, best val AUC, n_params, best_epoch). Full-batch AdamW,
+    linear warmup, early stopping on val AUC."""
     torch.manual_seed(seed)
     train, val, test = split
     N = data.num_nodes
@@ -34,8 +36,9 @@ def train_one(data, split, device, d_model, lr, max_epochs=300, patience=30, see
 
     model = ScratchAdjTransformer(N, d_model=d_model).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warmup))
 
-    best_auc, best_state, bad = 0.0, None, 0
+    best_auc, best_state, best_epoch, bad = 0.0, None, 0, 0
     for epoch in range(max_epochs):
         model.train()
         opt.zero_grad()
@@ -43,6 +46,7 @@ def train_one(data, split, device, d_model, lr, max_epochs=300, patience=30, see
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
+        sched.step()
 
         model.eval()
         with torch.no_grad():
@@ -52,7 +56,7 @@ def train_one(data, split, device, d_model, lr, max_epochs=300, patience=30, see
                 Lv[val.neg_edge_label_index[0], val.neg_edge_label_index[1]],
             )
         if m["auroc"] > best_auc:
-            best_auc, bad = m["auroc"], 0
+            best_auc, best_epoch, bad = m["auroc"], epoch, 0
             best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
         else:
             bad += 1
@@ -64,4 +68,4 @@ def train_one(data, split, device, d_model, lr, max_epochs=300, patience=30, see
     with torch.no_grad():
         logits = model(observed_dense(test, N).to(device)).cpu()
     n_params = sum(p.numel() for p in model.parameters())
-    return logits, best_auc, n_params
+    return logits, best_auc, n_params, best_epoch

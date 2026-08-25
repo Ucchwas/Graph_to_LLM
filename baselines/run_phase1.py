@@ -13,7 +13,7 @@ OUT = pathlib.Path("results/phase1/table.jsonl")
 SEEDS = [0, 1, 2, 3, 4]
 
 ROWS = {
-    **{k: heuristics.make_score_fn(k) for k in heuristics.HEURISTICS},
+    **{k: heuristics.make_score_fn(k) for k in (*heuristics.CONTROLS, *heuristics.HEURISTICS)},
     "feature_only_logreg": feature_only.score_fn,
     "gae": gae.make_score_fn("gae"),
     "gae_600ep": gae.make_score_fn("gae", fixed_epochs=600),

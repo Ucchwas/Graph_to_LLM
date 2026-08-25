@@ -1,7 +1,18 @@
-"""Zero-parameter link-prediction heuristics on the observed graph."""
+"""Zero-parameter link-prediction heuristics on the observed graph, plus the two
+controls every table carries: identity (leak canary -- every scored cell is 0 in
+the observed graph, so it must sit at chance) and random."""
 import torch
 
 from baselines.common import observed_dense
+
+
+def identity(A):
+    return A
+
+
+def random_scores(A):
+    R = torch.randn_like(A)  # global RNG, seeded by run_baseline
+    return R + R.T
 
 
 def common_neighbors(A):
@@ -26,6 +37,7 @@ def ppr(A, alpha=0.15):
     return (S + S.T) / 2
 
 
+CONTROLS = {"identity": identity, "random": random_scores}
 HEURISTICS = {
     "common_neighbors": common_neighbors,
     "adamic_adar": adamic_adar,
@@ -35,9 +47,11 @@ HEURISTICS = {
 
 
 def make_score_fn(kind: str):
+    fn = {**CONTROLS, **HEURISTICS}[kind]
+
     def score(data, split, device):
         _, _, test = split
         A = observed_dense(test, data.num_nodes)  # train+val edges, the test-time graph
-        return HEURISTICS[kind](A)
+        return fn(A)
 
     return score

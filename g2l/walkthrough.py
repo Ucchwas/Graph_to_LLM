@@ -65,27 +65,31 @@ def phase1():
     print("=" * 60)
     print("PHASE 1 WALKTHROUGH -- the baseline table, recomputed live")
     print("=" * 60)
-    import torch
+    import json
+    import pathlib
 
     from baselines.aggregate import table
     from baselines.common import run_baseline
     from baselines.heuristics import make_score_fn
 
-    print("
-Live rerun of one deterministic row (common_neighbors, seed 0):")
-    row = run_baseline("common_neighbors", 0, make_score_fn("common_neighbors"))
-    print(f"  auc={row['auc']:.4f}  ap={row['ap']:.4f}  ap_sparse={row['ap_sparse']:.4f}")
-    print("  -> must match the stored table row exactly (deterministic given seed).")
+    print()
+    print("Live rerun of one deterministic row (common_neighbors, seed 0) vs the stored Marlowe row:")
+    live = run_baseline("common_neighbors", 0, make_score_fn("common_neighbors"))
+    stored = next(r for r in map(json.loads, pathlib.Path("results/phase1/table.jsonl").open())
+                  if r["model"] == "common_neighbors" and r["seed"] == 0)
+    for k in ("auc", "ap", "ap_sparse", "lift"):
+        print(f"  {k:10s} live={live[k]:.5f}  marlowe={stored[k]:.5f}")
+    print("  -> ap_sparse/lift agree to float noise (same positives, same observed graph, no sampling);")
+    print("     auc/ap@1:1 differ in the 3rd decimal: the 527 sampled test negatives are platform-dependent.")
 
-    print("
-Stored table (mean +- std over seeds):
-")
+    print()
+    print("Stored table (mean +- std over seeds):")
+    print()
     print(table())
-    print("
-Reading guide: AP@1:1 is the Kipf-comparable column (GAE paper: 92.0;")
+    print()
+    print("Reading guide: AP@1:1 is the Kipf-comparable column (GAE paper: 92.0;")
     print("PyG reproduction: 91.2+-1.0). AP(sparse) is the honest 0.144%-prevalence")
     print("number -- note it is ~50x smaller at identical AUC. lift = AP/base-rate.")
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

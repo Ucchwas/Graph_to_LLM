@@ -32,13 +32,13 @@ def main():
                 val_auc[lr] = done[key]["val_auc"]
                 continue
             data, split = get_split(0)
-            _, auc, n_params = train_one(data, split, device, d, lr, seed=0)
+            _, auc, n_params, best_epoch = train_one(data, split, device, d, lr, seed=0)
             row = {"stage": "lr_select", "d_model": d, "lr": lr, "seed": 0,
-                   "val_auc": auc, "n_params": n_params}
+                   "val_auc": auc, "best_epoch": best_epoch, "n_params": n_params}
             val_auc[lr] = auc
             with OUT.open("a") as f:
                 f.write(json.dumps(row) + "\n")
-            print(f"d={d:5d} lr={lr:.0e}  val_auc={auc:.4f}", flush=True)
+            print(f"d={d:5d} lr={lr:.0e}  val_auc={auc:.4f}  best_epoch={best_epoch}", flush=True)
         best_lr = max(val_auc, key=val_auc.get)
 
         # stage 2: 5 seeds at the selected LR
@@ -47,14 +47,14 @@ def main():
             if key in done:
                 continue
             data, split = get_split(seed)
-            logits, auc, n_params = train_one(data, split, device, d, best_lr, seed=seed)
+            logits, auc, n_params, best_epoch = train_one(data, split, device, d, best_lr, seed=seed)
             row = evaluate_edge_split(logits, split, seed=seed)
             row.update(stage="final", model=f"scratch_d{d}", d_model=d, lr=best_lr,
-                       seed=seed, val_auc=auc, n_params=n_params)
+                       seed=seed, val_auc=auc, best_epoch=best_epoch, n_params=n_params)
             with OUT.open("a") as f:
                 f.write(json.dumps(row) + "\n")
             print(f"d={d:5d} seed={seed}  auc={row['auc']:.4f}  ap={row['ap']:.4f}"
-                  f"  params={n_params/1e6:.1f}M", flush=True)
+                  f"  best_epoch={best_epoch}  params={n_params/1e6:.1f}M", flush=True)
 
 
 if __name__ == "__main__":

@@ -5,9 +5,12 @@ from collections import defaultdict
 
 import numpy as np
 
+from baselines.run_phase1 import ROWS
+
 FILES = [pathlib.Path("results/phase1/table.jsonl"),
          pathlib.Path("results/phase1/scratch_sweep.jsonl")]
 COLS = ["auc", "ap", "auroc_sparse", "ap_sparse", "lift"]
+ORDER = list(ROWS)  # controls first, then heuristics, learned models, scratch by width
 
 
 def rows():
@@ -24,7 +27,11 @@ def table() -> str:
         by[r["model"]].append(r)
     lines = ["| model | n | AUC | AP@1:1 | AUROC(sparse) | AP(sparse) | lift |",
              "|---|---|---|---|---|---|---|"]
-    for m, rs in by.items():
+    def key(m):
+        return (ORDER.index(m) if m in ORDER else len(ORDER), by[m][0].get("d_model", 0))
+
+    for m in sorted(by, key=key):
+        rs = by[m]
         v = {c: np.array([r[c] for r in rs]) for c in COLS}
         extra = f" ({rs[0]['n_params']/1e6:.1f}M)" if "n_params" in rs[0] else ""
         lines.append(
