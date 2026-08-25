@@ -51,3 +51,31 @@ def evaluate_pairs(pos_logits: torch.Tensor, neg_logits: torch.Tensor) -> dict:
         "auroc": float(roc_auc_score(y, s)),
         "ap": float(average_precision_score(y, s)),
     }
+
+
+@torch.no_grad()
+def evaluate_edge_split(logits_full: torch.Tensor, split, seed: int = 0) -> dict:
+    """Score a full [N, N] logit matrix under the edge-split protocol.
+
+    auc/ap: the published-comparable column (test pos + the split's sampled negs).
+    *_sparse/lift: the honest column over every scorable cell (~3.66M on Cora).
+    Scores are symmetrized so direction conventions cannot matter.
+    """
+    from g2l.data import sparse_eval_mask
+
+    train, val, test = split
+    L = (logits_full + logits_full.T) / 2
+    pairs = evaluate_pairs(
+        L[test.pos_edge_label_index[0], test.pos_edge_label_index[1]],
+        L[test.neg_edge_label_index[0], test.neg_edge_label_index[1]],
+    )
+    mask, target = sparse_eval_mask(train, val, test)
+    sp = evaluate(L, target, mask, seed=seed)
+    return {
+        "auc": pairs["auroc"],
+        "ap": pairs["ap"],
+        "auroc_sparse": sp["auroc"],
+        "ap_sparse": sp["ap_sparse"],
+        "lift": sp["lift"],
+        "base_rate": sp["base_rate"],
+    }

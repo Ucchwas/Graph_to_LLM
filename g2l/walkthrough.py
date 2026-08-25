@@ -61,8 +61,34 @@ def phase0():
         print(f"\n(Cora not downloaded yet: {e})")
 
 
+def phase1():
+    print("=" * 60)
+    print("PHASE 1 WALKTHROUGH -- the baseline table, recomputed live")
+    print("=" * 60)
+    import torch
+
+    from baselines.aggregate import table
+    from baselines.common import run_baseline
+    from baselines.heuristics import make_score_fn
+
+    print("
+Live rerun of one deterministic row (common_neighbors, seed 0):")
+    row = run_baseline("common_neighbors", 0, make_score_fn("common_neighbors"))
+    print(f"  auc={row['auc']:.4f}  ap={row['ap']:.4f}  ap_sparse={row['ap_sparse']:.4f}")
+    print("  -> must match the stored table row exactly (deterministic given seed).")
+
+    print("
+Stored table (mean +- std over seeds):
+")
+    print(table())
+    print("
+Reading guide: AP@1:1 is the Kipf-comparable column (GAE paper: 92.0;")
+    print("PyG reproduction: 91.2+-1.0). AP(sparse) is the honest 0.144%-prevalence")
+    print("number -- note it is ~50x smaller at identical AUC. lift = AP/base-rate.")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--phase", type=int, required=True)
     args = ap.parse_args()
-    {0: phase0}[args.phase]()
+    {0: phase0, 1: phase1}[args.phase]()

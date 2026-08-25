@@ -82,3 +82,19 @@ def edge_split(data, num_val: float = 0.05, num_test: float = 0.10, seed: int = 
         add_negative_train_samples=False,
     )
     return split(data)  # (train, val, test)
+
+
+def sparse_eval_mask(train, val, test):
+    """Scorable cells at test time under the edge-split protocol: the strict upper
+    triangle minus train/val edge cells. Exactly the test held-out edges are positive.
+    Returns (mask [N,N] bool, target [N,N] float)."""
+    N = train.num_nodes
+    mask = torch.triu(torch.ones(N, N, dtype=torch.bool), diagonal=1)
+    for ei in (train.pos_edge_label_index, val.pos_edge_label_index):
+        i, j = ei
+        mask[torch.minimum(i, j), torch.maximum(i, j)] = False
+    target = torch.zeros(N, N)
+    i, j = test.pos_edge_label_index
+    target[torch.minimum(i, j), torch.maximum(i, j)] = 1.0
+    assert not target[~mask].any(), "a test edge collided with a train/val edge"
+    return mask, target
