@@ -23,7 +23,7 @@ def phase0():
     for i in range(5):
         A[i, i + 1] = A[i + 1, i] = 1.0
     A_obs, sup = mask_matrix(A, frac=0.4, seed=4)
-    hidden = [(i, j) for i, j in zip(*torch.where(sup))]
+    hidden = [(int(i), int(j)) for i, j in zip(*torch.where(sup))]
     print(f"\npath graph 0-1-2-3-4-5; hidden cells (upper-tri): {hidden}")
     print(f"of which true edges: {[(i, j) for i, j in hidden if A[i, j] > 0]}")
 
