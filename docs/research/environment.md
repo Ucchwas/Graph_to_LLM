@@ -17,7 +17,7 @@ Two environments with a hard division of labour. Decided by the user 2026-08-25:
 | OS | Windows 11 Home, PowerShell + Git Bash; **WSL 2 Ubuntu** installed for SSH multiplexing |
 | Python | 3.14.7 (only interpreter present) |
 | Stack | `torch 2.13.0+cu130` · `transformers 5.15.1` · `torch-geometric 2.8.0.post1` · `peft 0.20.0` — pinned in `requirements-local.txt` |
-| Verified | CUDA initialises on sm_120, bf16 matmul OK, all 26 tests green, Cora downloads |
+| Verified | CUDA initialises on sm_120, bf16 matmul OK, all 21 tests green, Cora downloads |
 
 Use for: `pytest`, gate walkthroughs (full-graph Cora **inference** fits in `no_grad`), N≤512
 shape/overfit smoke tests. Not for sweeps or multi-minute training, even when they would fit.
