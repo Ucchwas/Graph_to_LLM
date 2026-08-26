@@ -27,6 +27,13 @@ permutation_equivariant`). The table trains in its own AdamW group (`lr_bias`, n
 decay); the run asserts the table is non-zero after 100 steps and records the final table
 per head in the row (an interpretable result: how each head weights distance).
 
+Verified in the installed transformers 5.15.1 (research pass, 2026-08-26): a 4-D float mask
+early-exits `masking_utils` untouched, is added once to the scaled scores before an fp32
+softmax (`modeling_llama.py:201-208`), is the same tensor object at every layer, and a
+zero-init table behind it receives gradients (bf16 body under autocast included). One
+caveat: *reentrant* gradient checkpointing fails with a shared non-leaf mask; we run without
+checkpointing and `FrozenBody.checkpointing` is non-reentrant.
+
 Not in Phase 3: LoRA (3B), per-layer bias (needs Implementation B), RRWP / magnetic
 Laplacian biases, GaLA's per-head λ calibration (the learned per-head table subsumes it),
 encoders E2–E7.
@@ -38,7 +45,7 @@ encoders E2–E7.
 | pretrained + SPD | frozen Llama-3.2-1B | learned table (32 heads) | 1e-2 (Phase-2 selection) and ×⅓, ×3 | 9.82 M + 320 |
 | random + SPD | same config, seeded init | learned table | 3e-3 | 9.82 M + 320 |
 | scratch d256 L4 + SPD | 4-layer pre-LN transformer | learned table (8 heads) | 1e-3 | 3.9 M + 80 |
-| scratch d256 L1 + SPD | 1 attention block — the LLM2Attn-style control | learned table | 1e-3 | ~1 M + 80 |
+| scratch d256 L1 + SPD | one transformer block — Tan et al.'s LLM2Trsf control | learned table | 1e-3 | ~1 M + 80 |
 | none | (Phase 2) | – | 3e-4 | 9.75 M |
 
 Everything else (E1, LayerNorm gain T/√d, D1, decoder-input LayerNorm, masked-cell loss,
@@ -49,16 +56,18 @@ warm-up, clip, patience 200 / 2000 epochs, evaluation) is the Phase-2 recipe unc
 - **Shuffled A** for pretrained + SPD: the bias sees the rewired graph too. Real input must
   beat it by a margin comparable to Phase 2's +0.19.
 - **Zero-init inertness** (test) and **bias non-zero after 100 steps** (assert in every run).
-- **LLM2Attn analogue**: scratch d256 with one attention block + the same bias. If 16 frozen
-  pretrained layers + bias do not beat one trained attention block + bias, the LLM is not
-  contributing (Tan et al. 2024's test, pre-registered in PLAN-PHASE2 §9 for a null Phase 2).
+- **LLM2Trsf** (Tan et al. 2024, arXiv 2406.16964): scratch d256 with one transformer block +
+  the same bias. If 16 frozen pretrained layers + bias do not beat one trained block + bias,
+  the LLM is not contributing. Pre-registered in PLAN-PHASE2 §9 as the first Phase-3
+  control if Phase 2's pretrained-vs-random delta was null — it was (−0.009, p 0.11).
 - **Bias-off references at 10 seeds** so every paired delta has n = 10: none seeds 5–9,
   scratch L4 seeds 5–9, scratch L1 seeds 0–9 (bias off). Pretrained and random already have
   10 seeds from Phase 2.
-- **Data-fraction sweep** (pre-registered in PLAN-PHASE2 §9, *conditional*): train edges
-  kept at 10 % and 30 % (val/test unchanged) for pretrained + SPD, random + SPD, none at the
-  selected LRs — run only if pretrained + SPD ≈ random + SPD after the main stage (the
-  question it answers is whether a pretrained prior matters when data is scarce).
+- **Data-fraction sweep** (pre-registered in PLAN-PHASE2 §9 / docs/research/fpt.md,
+  *conditional*): train edges kept at 10 / 25 / 50 % (val/test unchanged) for pretrained +
+  SPD, random + SPD, none at the selected LRs — run only if pretrained + SPD ≈ random + SPD
+  after the main stage (the question it answers is whether a pretrained prior matters when
+  data is scarce; GPT4TS-style evidence says that is the only corner where it should).
 
 ## 4. The array (one submission)
 
