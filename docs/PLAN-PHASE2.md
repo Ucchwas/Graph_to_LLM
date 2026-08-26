@@ -266,7 +266,7 @@ norms), `g2l/train.py` (recipe, row record, checkpoint of trainables), `g2l/run_
 (run-list expansion, key-named row files, commit-aware skip), `configs/phase2.yaml`,
 `slurm/phase2_probe.sbatch`, `slurm/phase2_grid.sbatch` (array), `tests/test_llm.py`,
 `tests/test_encoders.py`, `results/phase2/RESULTS.md`.
-Modify: `baselines/aggregate.py` (Phase-2 rows, LR selection, paired statistics, single-commit
+Create also: `g2l/aggregate.py` (Phase-2 rows, LR selection, paired statistics, single-commit
 check), `g2l/walkthrough.py` (phase 2), `scripts/marlowe_setup.sh` (weights staging),
 `docs/PLAN.md` (pointer to this file). `baselines/scratch_transformer.py` stays untouched as
 the Phase-1 record; the Phase-2 scratch body lives in `model.py`.

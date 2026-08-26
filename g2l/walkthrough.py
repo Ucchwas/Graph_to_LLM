@@ -91,8 +91,56 @@ def phase1():
     print("PyG reproduction: 91.2+-1.0). AP(sparse) is the honest 0.144%-prevalence")
     print("number -- note it is ~50x smaller at identical AUC. lift = AP/base-rate.")
 
+def phase2(key: str | None = None):
+    """Gate assertions live, then arm 1 seed 0 recomputed on the laptop from its Marlowe
+    checkpoint and compared with the logits saved by the cluster job."""
+    import json
+    import os
+    import pathlib
+
+    import pytest
+    import yaml
+
+    print("=" * 60)
+    print("PHASE 2 WALKTHROUGH -- injection route, checkpoint reload, delta table")
+    print("=" * 60)
+    print("\n-- gate assertions, live (tiny-model mechanics + real-weight parity/canary) --")
+    assert pytest.main(["-q", "tests/test_llm.py", "tests/test_llm_real.py"]) == 0
+
+    from baselines.common import get_split, observed_dense
+    from g2l.aggregate import main as aggregate
+    from g2l.llm import FrozenBody, build_body, load_config
+    from g2l.metrics import evaluate_edge_split
+    from g2l.model import build_model
+
+    cfg = yaml.safe_load(open("configs/phase2.yaml"))
+    key = key or f"e1_pretrained_d1_masked_real_{cfg['selected_lr']['pretrained']:.0e}_s0"
+    runs = pathlib.Path(os.environ.get("G2L_RUNS", os.path.join(os.environ.get("LOCALAPPDATA", "results/runs"), "g2l", "phase2")))
+    stored = json.load(open(f"results/phase2/rows/{key}.json"))
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"\n-- {key}: rebuild on the laptop from {runs / key}.pt --")
+    data, split = get_split(stored["seed"])
+    body = FrozenBody(build_body(load_config(cfg["model_id"], cfg["revision"]), pretrained=True,
+                                 model_id=cfg["model_id"], revision=cfg["revision"]))
+    model = build_model("pretrained", data.num_nodes, cfg["d_model"], body.T, body=body, seed=stored["seed"]).to(device)
+    res = model.load_state_dict(torch.load(runs / f"{key}.pt", map_location=device), strict=False)
+    assert not res.unexpected_keys
+    model.eval()
+    with torch.no_grad():
+        logits = model(observed_dense(split[2], data.num_nodes).to(device)).cpu()
+    saved = torch.load(runs / f"{key}.logits.pt").float()
+    live = evaluate_edge_split(logits, split, seed=stored["seed"])
+    print(f"  max |logit delta| vs Marlowe: {(logits - saved).abs().max().item():.4f}  (saved logits are fp16)")
+    for k in ("auc", "ap", "ap_sparse"):
+        print(f"  {k:10s} live={live[k]:.5f}  marlowe={stored[k]:.5f}")
+
+    print("\n-- table and paired deltas (results/phase2/rows) --\n")
+    aggregate()
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--phase", type=int, required=True)
+    ap.add_argument("--key", default=None)
     args = ap.parse_args()
-    {0: phase0, 1: phase1}[args.phase]()
+    {0: phase0, 1: phase1, 2: lambda: phase2(args.key)}[args.phase]()
