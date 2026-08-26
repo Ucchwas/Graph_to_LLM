@@ -93,9 +93,11 @@ Main stage, 370 runs, all 10 seeds, `python -m g2l.run_phase3 --stage main --lis
 
 Bias LR grid spans 1.5 decades around GTLM's 5e-3 … 4e-2. 200 frozen-body runs at
 ≈ 0.33 s/epoch (probe; the bias as a one-hot matmul, not a gather) ≈ 20 GPU-hours with the
-scratch runs. Submitted as `sbatch --array=0-3 slurm/phase3_node.sbatch main 24 4` — 4 tasks
-× 4 GPUs on one node, 24 runs per GPU (8 h limit covers 24 frozen runs at the 2000-epoch
-cap); fallback `sbatch --array=0-15 slurm/phase3_grid.sbatch main 24` (1 GPU per task).
+scratch runs. Submitted as `sbatch --array=0-7 --gpus=2 --cpus-per-task=16 --mem=128G
+slurm/phase3_node.sbatch main 24 2` (job 449403) — 8 tasks × 2 GPUs, 24 runs per GPU, 16 GPUs
+in parallel; the 2-GPU allocation schedules on partially-free nodes, where the 4-GPU form
+(449391) waited for a whole node. 8 h limit covers 24 frozen runs at the 2000-epoch cap;
+fallback `sbatch --array=0-15 slurm/phase3_grid.sbatch main 24` (1 GPU per task).
 Before it: one probe job (`--probe`: biased arm 1 on the 512-node subgraph — loss halves,
 table moves, gradient at the table; full Cora s/epoch and peak memory with the bias), and an
 adversarial code review (runtime / science / aggregation lenses, each finding verified by
@@ -116,6 +118,17 @@ Test metrics reported at the selected setting; every comparison is a paired per-
 on the shared splits with SE, t, p and MDE (n = 10 everywhere), between Phase-3 rows at one
 commit. Phase-2 rows (commit `1f1f33a`) are printed beside the bias-off
 references as a same-seed reproduction check.
+
+**Pre-registered, written before any Phase-3 row was read (2026-08-26, array 449403 still
+queued).** At n = 10 the paired MDE of a frozen-arm contrast is ≈ 0.016 AUROC (from the
+Phase-2 rows: SE 0.0051), and Phase 2's pretrained − random point estimate was −0.009. Q3 can
+therefore return "not significant" for two different reasons, and only one of them is an
+answer. Rule: if Q3's Δ(pretrained + SPD − random + SPD) has p > 0.05 **and** |Δ| < MDE, both
+arms are extended to seeds 10–19 at their selected cells (20 runs, ≈ 2 GPU-h) and the n = 20
+delta is the reported result; the n = 10 delta is reported beside it. If p > 0.05 with
+|Δ| ≥ MDE, or p ≤ 0.05, no extension — the n = 10 result stands as measured. The same rule
+applies to Q1 and Q2. Selection is never re-run on the added seeds (the cell is fixed by the
+first 10, as in Phase 2), so the extension cannot change which configuration is reported.
 
 ## 6. Steps
 
