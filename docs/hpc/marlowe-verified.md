@@ -34,6 +34,11 @@ $HOME/envs/g2l              venv (NFS handles many small files better than Lustr
   **`DenyQos=class,medium`** → **we cannot use `preempt` at all.** This settles the
   "free preempt cycles via the bare account" question: not available to us.
 - `MaxArraySize=1001`, `MaxJobCount=10000` → job arrays up to 1000 tasks. (Was [UNKNOWN].)
+- **QOS `medium`: MaxSubmitJobsPerAccount = 32, MaxJobsPerAccount = 32, MaxTRESPerAccount
+  gres/gpu=128** — per *account*, shared with every teammate (observed 2026-08-26: a 75-task
+  array was rejected with `MaxSubmitJobsPerAccount`). Every array element counts. Keep
+  arrays ≤ ~20 elements and let each element run several run keys sequentially
+  (`g2l/run_phase2.py --chunk`).
 - Slurm 25.05.2. **Not on PATH by default — every script needs `module load slurm`.**
 - Queue at first login: 134 jobs in `batch`, 57 pending. Expect real waits.
 

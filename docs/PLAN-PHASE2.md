@@ -153,7 +153,10 @@ pulled with `rsync marlowe:$SCR/results/phase2/rows/ results/phase2/rows/`. A ta
 if a row with the same key **and the same commit hash** exists (`--force` overrides);
 `aggregate` refuses a table whose rows span more than one commit. Arrays use
 `--output=$SCR/logs/%x-%A_%a.out`; failed/timed-out ids are resubmitted with
-`sbatch --array=<ids>`. Checkpoints (trainables only, ≈ 39 MB) at
+`sbatch --array=<ids>`. QOS `medium` caps the whole account at 32 submitted jobs (shared
+with teammates, every array element counts), so each array element runs a contiguous chunk
+of the run list sequentially (`--chunk`) and arrays stay ≤ ~20 elements. Checkpoints
+(trainables only, ≈ 39 MB) at
 `$SCR/runs/phase2/<key>.pt`; arm 1 seed 0 at the selected LR also saves its test logits
 (29 MB) for the walkthrough.
 
