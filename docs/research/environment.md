@@ -32,19 +32,19 @@ v5 source, and `transformers==5.15.1` is pinned on both machines. The day-one
 
 ## 2. Marlowe — all training (primary)
 
-Facts from docs/hpc/marlowe.md (desk research; items marked *verify* are checked by
-`scripts/marlowe_verify.sh` at first login).
+Verified on the machine 2026-08-25 (docs/hpc/marlowe-verified.md; the desk-research version
+is docs/hpc/marlowe.md and is superseded wherever they differ).
 
 | Item | Value |
 |---|---|
 | Login | `ssh uutsha@login.marlowe.stanford.edu` — password + Duo per connection; multiplexed via WSL (`Host marlowe`, ControlPersist 8h) |
-| Account / partition | `marlowe-m000211-pm06` / `batch` (Medium Project: ≤16 nodes, 2-day walltime, not preemptible) |
-| Hardware | DGX H100 SuperPOD: 248× H100 80 GB SXM5, 8/node, 112 cores + 2 TB RAM/node |
-| Persistent | `/projects/m000211` — code (`Graph_to_LLM/`), venv (`envs/g2l/`), datasets (`data/pyg/`) |
-| Scratch | `/scratch/m000211/uutsha` — HF cache, Triton/Inductor caches, logs, runs. Not backed up; purge policy *verify* |
-| `$HOME` | 32 GB — dotfiles only |
-| Software | Lmod; `module load slurm mps` in every GPU job; no python/pytorch module → venv + pip; Apptainer available |
-| Internet on compute nodes | *verify*; regardless, models pre-staged on login node, jobs run `HF_HUB_OFFLINE=1` |
+| Account / partition | `marlowe-m000211-pm06` / `batch` (QOS `medium`: ≤16 nodes, 2-day walltime, not preemptible; `preempt` denies our QOS) |
+| Hardware | 31 nodes × 8 H100 80 GB (247 GPUs); 112 cores + 1.9 TB RAM/node; `TmpDisk=0` (no node-local scratch) |
+| Code + env | `$HOME/Graph_to_LLM` (rsync'd from the laptop — no repo credentials on the cluster) and `$HOME/envs/g2l` (uv 0.12.5 venv, Python 3.10.12, torch 2.13.0+cu126; pinned in `requirements-cluster.txt`). `/projects/m000211` belongs to the base group and is not writable by us — not needed. |
+| Scratch | `/scratch/m000211-pm06/uutsha/{hf,pyg,logs,runs,torch,triton,inductor,uvcache,xdgcache}` — Lustre, not backed up, 87% full at first login |
+| Slurm | 25.05.2; **not on PATH** — `module load slurm` in every shell and job script; arrays up to 1000 tasks |
+| Software | Lmod; no pytorch module; `python3 -m venv` fails (no ensurepip) → uv; `module load conda` does not expose conda |
+| Internet | login nodes have outbound access (pypi, HF, GitHub); compute-node egress unverified → data/models pre-staged, jobs run `HF_HUB_OFFLINE=1` |
 | Budget | ~10,000 GPU-h per 12-week cycle; $0.30/GPU-h from 2026-09-01 |
 
 Policy: no training, compile warm-ups or preprocessing loops on login nodes; never create an
@@ -77,9 +77,14 @@ for interactive. Full differences list: docs/hpc/sherlock.md §9.
 
 ## 4. Dev/prod split — the standing risk
 
-Code is written on Windows/py3.14/torch 2.13 and run on Linux/cluster Python/whatever torch
-pip resolves there. Mitigations: `requirements-local.txt` and `requirements-cluster.txt`
-pinned separately with `transformers==5.15.1` in both; `.gitattributes` forces LF on all
-scripts (CRLF breaks bash on the cluster); data roots via `PYG_DATA_ROOT`; every gate
-walkthrough re-runs on the laptop against cluster checkpoints; the first Marlowe job
-reproduces a locally-known number before any new experiment runs.
+Code is written on Windows / Python 3.14 / torch 2.13+cu130 and run on Linux / Python 3.10 /
+torch 2.13+cu126 (numpy 2.5 vs 2.2, scikit-learn 1.9 vs 1.7). Mitigations:
+`requirements-local.txt` and `requirements-cluster.txt` pinned separately with
+`transformers==5.15.1` in both; `.gitattributes` forces LF on all scripts (CRLF breaks bash on
+the cluster); data roots via `PYG_DATA_ROOT`; every gate walkthrough re-runs on the laptop
+against cluster outputs; the first Marlowe job reproduced locally-known numbers.
+
+Measured consequence (Phase 1): the edge split's *positives* and the observed graph are
+bit-identical across the two machines (AP@true-prevalence matches to 1e-5), but PyG's
+negative sampler is platform-dependent, so AUROC / AP@1:1 differ in the third decimal.
+Cross-machine comparisons therefore use the sparse-view columns.

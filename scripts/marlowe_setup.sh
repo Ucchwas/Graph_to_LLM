@@ -1,41 +1,32 @@
 #!/bin/bash
-# Marlowe one-time environment setup (runs on a LOGIN node).
-# Layout per docs/hpc/marlowe.md: code+env on /projects (backed up), caches on /scratch.
+# Marlowe one-time environment setup (runs on a LOGIN node; no GPU work).
+# Layout per docs/hpc/marlowe-verified.md: code + venv in $HOME (NFS), everything
+# large on /scratch/m000211-pm06/$USER. Code arrives by rsync from the laptop
+# (private repo; no credentials on the cluster). Run after scripts/marlowe_verify.sh.
 set -euo pipefail
-PROJ=/projects/m000211
-SCR=/scratch/m000211/$USER
-ls "$PROJ" >/dev/null   # autofs: touch the mount so it appears
+SCR=/scratch/m000211-pm06/$USER
+VENV=$HOME/envs/g2l
+export PATH="$HOME/.local/bin:$PATH" UV_CACHE_DIR="$SCR/uvcache" PYG_DATA_ROOT="$SCR/pyg"
+mkdir -p "$SCR"/{hf,torch,triton,inductor,xdgcache,logs,runs,pyg,uvcache} "$HOME/envs"
 
-mkdir -p "$SCR"/{hf,torch,triton,inductor,xdgcache,logs,runs} "$PROJ"/{envs,data}
+cd "$HOME/Graph_to_LLM"
+echo "code @ $(git rev-parse --short HEAD)"
 
-# --- code ---
-if [ ! -d "$PROJ/Graph_to_LLM" ]; then
-  git clone https://github.com/Ucchwas/Graph_to_LLM.git "$PROJ/Graph_to_LLM"
-else
-  git -C "$PROJ/Graph_to_LLM" pull --ff-only
-fi
+# python3 -m venv is broken here (no ensurepip); uv is self-contained.
+command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+[ -d "$VENV" ] || uv venv --python 3.10 "$VENV"
+source "$VENV/bin/activate"
 
-# --- python env (venv on /projects; conda avoided per docs) ---
-if [ ! -d "$PROJ/envs/g2l" ]; then
-  python3 -m venv "$PROJ/envs/g2l"
-fi
-source "$PROJ/envs/g2l/bin/activate"
-pip -q install --upgrade pip
-# CUDA wheel index chosen AFTER we see the driver version from marlowe_verify.sh.
-# cu126 is the safe default for H100 + recent drivers; adjust if verify says otherwise.
-pip -q install torch --index-url "${TORCH_INDEX:-https://download.pytorch.org/whl/cu126}"
-pip -q install torch-geometric "transformers==5.15.1" peft accelerate torchmetrics ogb scipy scikit-learn networkx pytest pyyaml
+# torch from the cu126 index first (driver 580 on the nodes), the rest from PyPI.
+uv pip install -q torch --index-url "${TORCH_INDEX:-https://download.pytorch.org/whl/cu126}"
+uv pip install -q torch-geometric "transformers==5.15.1" peft accelerate torchmetrics ogb scipy scikit-learn networkx pytest pyyaml
+python -c "import torch,transformers,torch_geometric as g;print('torch',torch.__version__,'| cuda',torch.version.cuda,'| tf',transformers.__version__,'| pyg',g.__version__)"
 
-# --- datasets (login node has internet; jobs run offline) ---
-export PYG_DATA_ROOT="$PROJ/data/pyg"
-python - <<'PY'
+# datasets: login node has internet; jobs run with HF_HUB_OFFLINE=1
+python -c "
 from torch_geometric.datasets import Planetoid
-Planetoid("/projects/m000211/data/pyg", "Cora")
-print("Cora staged")
-PY
+d=Planetoid('$SCR/pyg','Cora')[0];print('Cora:',d.num_nodes,'nodes',tuple(d.edge_index.shape))"
 
-python - <<'PY'
-import torch
-print("torch", torch.__version__, "cuda build", torch.version.cuda)
-PY
-echo "=== setup complete. Test with: sbatch slurm/phase1_scratch_sweep.sbatch ==="
+python -m pytest tests/ -q 2>&1 | tail -3
+uv pip freeze > requirements-cluster.txt
+echo "SETUP_COMPLETE -- next: sbatch slurm/phase1_baselines.sbatch"

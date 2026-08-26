@@ -15,8 +15,8 @@ wherever they conflict. Everything below was observed, not inferred.
 
 **Cause:** our account is provisioned into the *cycle* group `…-pm06`, but the `/projects`
 space is owned by the *base* group. Other projects have `-pm06` scratch dirs (m000051-pm06,
-m000060-pm06, …) but **none has a `-pm06` projects dir**, so `/projects` access requires being
-added to the base group. **Open request to SRCC — see below.**
+m000060-pm06, …) but **none has a `-pm06` projects dir**. **Not a blocker and no request
+needed** (decision 2026-08-25): `$HOME` + `/scratch/m000211-pm06` covers everything.
 
 **Working layout adopted (deviates from PLAN.md §Repo layout):**
 ```
@@ -77,11 +77,13 @@ Compute-node egress still unverified → keep pre-staging models and running job
 - Private-repo clone from the cluster needs credentials we will not store → **sync with
   `rsync -az -e ssh ./ marlowe:~/Graph_to_LLM/`** over the authenticated connection instead.
 
-## Open request for SRCC / the PI
-> Our SUNet `uutsha` is in `marlowe-m000211-pm06` but `/projects/m000211` is owned by
-> `marlowe-m000211`, and `/projects/m000211-pm06` does not exist. We can write to
-> `/scratch/m000211-pm06` but have no persistent project space. Could `uutsha` be added to
-> the `marlowe-m000211` group, or a `/projects/m000211-pm06` directory be created?
+## Storage policy in practice
+Code and venv live in `$HOME` (NFS, backed up); everything large in `/scratch/m000211-pm06`
+(not backed up); result files are rsync'd back to the laptop and committed rather than left
+on scratch. `scripts/marlowe_setup.sh` reproduces the environment; `requirements-cluster.txt`
+is its `pip freeze`.
 
-Until then: code and venv live in `$HOME`, everything large in `/scratch/m000211-pm06`, and
-results are copied back to `$HOME`/git rather than left on scratch.
+## First jobs (2026-08-25)
+447710/447711 (Phase-1 baselines + scratch sweep, n29) and 447738/447739 (re-runs, n31):
+1 GPU, 8 CPUs, 64 GB each, started within seconds of submission, 0.5–4 min wall-clock.
+Cluster numbers reproduce the laptop's (see docs/research/environment.md §4).

@@ -10,7 +10,7 @@ scontrol show partition | grep -E "PartitionName|MaxTime|MaxNodes|State|AllowAcc
 echo "=== array/job caps ==="
 scontrol show config | grep -iE "maxarraysize|maxjobcount" 
 echo "=== storage ==="
-ls -d /projects/m000211 2>&1; df -h /projects/m000211 /scratch/m000211 ~ 2>&1
+ls -d /projects/m000211 2>&1; df -h /projects/m000211 /scratch/m000211 /scratch/m000211-pm06 ~ 2>&1
 quota -s 2>/dev/null; lfs quota -h -p $(stat -c %g /scratch/m000211 2>/dev/null) /scratch/m000211 2>/dev/null
 echo "=== modules ==="
 module avail 2>&1 | head -40

@@ -4,6 +4,7 @@ Two masking views (both required by the eval protocol):
   1. edge-split  -- RandomLinkSplit, comparable to published GAE/VGAE numbers.
   2. matrix-mask -- hide a fraction of upper-triangle cells, mirrored into the input.
 """
+import random
 from dataclasses import dataclass
 
 import torch
@@ -77,6 +78,7 @@ def edge_split(data, num_val: float = 0.05, num_test: float = 0.10, seed: int = 
     from torch_geometric.transforms import RandomLinkSplit
 
     torch.manual_seed(seed)
+    random.seed(seed)  # PyG's negative_sampling draws with random.sample, not torch
     split = RandomLinkSplit(
         num_val=num_val,
         num_test=num_test,

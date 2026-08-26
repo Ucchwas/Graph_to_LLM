@@ -8,8 +8,7 @@ from g2l.data import edge_split, sparse_eval_mask
 from g2l.metrics import evaluate_edge_split
 
 
-@pytest.fixture(scope="module")
-def tiny_split():
+def _tiny_data():
     from torch_geometric.data import Data
 
     torch.manual_seed(0)
@@ -17,7 +16,18 @@ def tiny_split():
     up = torch.triu((torch.rand(n, n) < 0.2).float(), diagonal=1)
     ei = up.nonzero().t()
     ei = torch.cat([ei, ei.flip(0)], dim=1)
-    return edge_split(Data(x=torch.randn(n, 3), edge_index=ei, num_nodes=n), seed=0)
+    return Data(x=torch.randn(n, 3), edge_index=ei, num_nodes=n)
+
+
+@pytest.fixture(scope="module")
+def tiny_split():
+    return edge_split(_tiny_data(), seed=0)
+
+
+def test_split_is_deterministic():
+    a, b = edge_split(_tiny_data(), seed=3)[2], edge_split(_tiny_data(), seed=3)[2]
+    assert torch.equal(a.pos_edge_label_index, b.pos_edge_label_index)
+    assert torch.equal(a.neg_edge_label_index, b.neg_edge_label_index)
 
 
 def test_sparse_mask_excludes_seen_edges(tiny_split):
