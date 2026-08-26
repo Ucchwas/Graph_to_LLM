@@ -84,7 +84,7 @@ torch 2.13+cu126 (numpy 2.5 vs 2.2, scikit-learn 1.9 vs 1.7). Mitigations:
 the cluster); data roots via `PYG_DATA_ROOT`; every gate walkthrough re-runs on the laptop
 against cluster outputs; the first Marlowe job reproduced locally-known numbers.
 
-Measured consequence (Phase 1): the edge split's *positives* and the observed graph are
-bit-identical across the two machines (AP@true-prevalence matches to 1e-5), but PyG's
-negative sampler is platform-dependent, so AUROC / AP@1:1 differ in the third decimal.
-Cross-machine comparisons therefore use the sparse-view columns.
+Measured in Phase 1: with torch *and* Python `random` seeded in `edge_split` (PyG's
+`negative_sampling` uses `random.sample`), a deterministic baseline row is bit-identical on
+both machines in all columns. Before that seed was added, the 527 balanced test negatives
+changed on every call and AUROC / AP@1:1 wobbled in the third decimal.

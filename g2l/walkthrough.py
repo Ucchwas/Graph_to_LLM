@@ -79,8 +79,8 @@ def phase1():
                   if r["model"] == "common_neighbors" and r["seed"] == 0)
     for k in ("auc", "ap", "ap_sparse", "lift"):
         print(f"  {k:10s} live={live[k]:.5f}  marlowe={stored[k]:.5f}")
-    print("  -> ap_sparse/lift agree to float noise (same positives, same observed graph, no sampling);")
-    print("     auc/ap@1:1 differ in the 3rd decimal: the 527 sampled test negatives are platform-dependent.")
+    print("  -> all four must agree to float noise: the split (positives AND sampled negatives)")
+    print("     is fully seeded, so the laptop reproduces the cluster row exactly.")
 
     print()
     print("Stored table (mean +- std over seeds):")

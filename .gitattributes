@@ -4,3 +4,4 @@
 *.sbatch text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+*.txt text eol=lf
