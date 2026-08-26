@@ -140,9 +140,65 @@ def phase2(key: str | None = None):
     aggregate()
 
 
+def phase3(key: str | None = None):
+    """Bias gate assertions live, then pretrained + SPD seed 0 rebuilt on the laptop from its
+    Marlowe checkpoint: logits vs the saved ones, and the learned per-head distance table."""
+    import json
+    import os
+    import pathlib
+
+    import numpy as np
+    import pytest
+    import yaml
+
+    print("=" * 60)
+    print("PHASE 3 WALKTHROUGH -- attention bias: inertness, gradient, leak, reload, learned table")
+    print("=" * 60)
+    print("\n-- gate assertions, live --")
+    assert pytest.main(["-q", "tests/test_bias.py", "tests/test_llm.py", "tests/test_llm_real.py"]) == 0
+
+    from baselines.common import get_split, observed_dense
+    from g2l.aggregate3 import main as aggregate
+    from g2l.llm import FrozenBody, build_body, load_config
+    from g2l.metrics import evaluate_edge_split
+    from g2l.model import build_model
+
+    cfg = yaml.safe_load(open("configs/phase3.yaml"))
+    sel = cfg["selected"]["pretrained"]
+    key = key or f"pretrained_spd_real_f1.0_lr{sel['lr']:.0e}_lb{sel['lr_bias']:.0e}_s0"
+    runs = pathlib.Path(os.environ.get("G2L_RUNS", os.path.join(os.environ.get("LOCALAPPDATA", "results/runs"), "g2l", "phase3")))
+    stored = json.load(open(f"results/phase3/rows/{key}.json"))
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"\n-- {key}: rebuild on the laptop from {runs / key}.pt --")
+    data, split = get_split(stored["seed"])
+    body = FrozenBody(build_body(load_config(cfg["model_id"], cfg["revision"]), pretrained=True,
+                                 model_id=cfg["model_id"], revision=cfg["revision"]))
+    model = build_model("pretrained", data.num_nodes, cfg["d_model"], body.T, body=body, seed=stored["seed"],
+                        bias=True, max_dist=cfg["max_dist"]).to(device)
+    res = model.load_state_dict(torch.load(runs / f"{key}.pt", map_location=device), strict=False)
+    assert not res.unexpected_keys
+    model.eval()
+    with torch.no_grad():
+        logits = model(observed_dense(split[2], data.num_nodes).to(device)).cpu()
+    saved = torch.load(runs / f"{key}.logits.pt").float()
+    live = evaluate_edge_split(logits, split, seed=stored["seed"])
+    delta = (logits - saved).abs().max().item()
+    print(f"  max |logit delta| vs Marlowe: {delta:.4f}  (saved logits are fp16; locked at 0.02)")
+    assert delta < 0.02
+    for k in ("auc", "ap", "ap_sparse"):
+        print(f"  {k:10s} live={live[k]:.5f}  marlowe={stored[k]:.5f}")
+    t = model.bias.bias_table.detach().cpu().numpy()
+    print("\n  learned bias table (mean over heads) per distance bucket, 0 = self (fixed), 9 = far/unreachable:")
+    print("  " + "  ".join(f"d{k}:{v:+.3f}" for k, v in enumerate(t.mean(0))))
+    print(f"  head spread at d1 {t[:, 1].std():.3f}, d9 {t[:, 9].std():.3f}; max |bias| {np.abs(t).max():.3f}")
+
+    print("\n-- table and paired deltas (results/phase3/rows vs Phase-2 references) --\n")
+    aggregate()
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--phase", type=int, required=True)
     ap.add_argument("--key", default=None)
     args = ap.parse_args()
-    {0: phase0, 1: phase1, 2: lambda: phase2(args.key)}[args.phase]()
+    {0: phase0, 1: phase1, 2: lambda: phase2(args.key), 3: lambda: phase3(args.key)}[args.phase]()
