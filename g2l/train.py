@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 
 from baselines.common import observed_dense, recon_bce
-from g2l.data import mask_matrix, rewire_degree_preserving
+from g2l.data import mask_matrix, rewire_degree_preserving, subsample_edges
 from g2l.metrics import evaluate_edge_split, evaluate_pairs
 from g2l.model import param_groups
 
@@ -25,14 +25,19 @@ def masked_loss(logits, target, pos_weight):
     return F.binary_cross_entropy_with_logits(logits, target, pos_weight=pos_weight)
 
 
-def make_optimizer(model, lr, lr_norm, weight_decay):
+def make_optimizer(model, lr, lr_norm, weight_decay, lr_bias=None):
+    """Differential LRs: encoder/decoder and the scratch body at `lr`; RMSNorm gains at
+    `lr_norm`; the zero-init bias table at `lr_bias` (no weight decay -- it starts at 0)."""
     g = param_groups(model)
-    assert not g["bias_table"] and not g["lora"], "Phase 2 trains no bias table and no LoRA"
+    assert not g["lora"], "LoRA is Phase 3B"
+    assert bool(g["bias_table"]) == (lr_bias is not None), "bias table present iff lr_bias is set"
     groups = [{"params": g["main"], "lr": lr, "weight_decay": weight_decay}]
     if g["rmsnorm"]:
         groups.append({"params": g["rmsnorm"], "lr": lr_norm, "weight_decay": 0.0})
     if g["scratch"]:
         groups.append({"params": g["scratch"], "lr": lr, "weight_decay": weight_decay})
+    if g["bias_table"]:
+        groups.append({"params": g["bias_table"], "lr": lr_bias, "weight_decay": 0.0})
     return torch.optim.AdamW(groups)
 
 
@@ -61,21 +66,26 @@ def first_batch_stats(model, A, pos):
 
 
 def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "masked",
-              shuffle_input: bool = False, log=print) -> tuple[dict, dict, torch.Tensor]:
-    """Returns (row, trainable state at the best epoch, test logits [N, N])."""
+              shuffle_input: bool = False, train_frac: float = 1.0, log=print) -> tuple[dict, dict, torch.Tensor]:
+    """Returns (row, trainable state at the best epoch, test logits [N, N]).
+    `train_frac` < 1 keeps a seeded fraction of the train edges (input and supervision; val
+    and test untouched) for the data-fraction sweep."""
     train, val, test = split
     N = data.num_nodes
     A_train = observed_dense(train, N)
+    if train_frac < 1.0:
+        A_train = subsample_edges(A_train, train_frac, seed)
     A_in = rewire_degree_preserving(A_train, seed) if shuffle_input else A_train
     pw = torch.tensor(pos_weight_of(A_train), device=device)
     A_train, A_in = A_train.to(device), A_in.to(device)
-    pos = train.pos_edge_label_index.to(device)
+    pos = A_train.nonzero().T
     model.to(device)
     if cfg.get("checkpointing") and hasattr(model.body, "checkpointing"):
         model.body.checkpointing(True)
     if hasattr(model.body, "canary"):
         model.body.canary()
-    opt = make_optimizer(model, cfg["lr"], cfg["lr_norm"], cfg["weight_decay"])
+    opt = make_optimizer(model, cfg["lr"], cfg["lr_norm"], cfg["weight_decay"], cfg.get("lr_bias"))
+    table = model.bias.bias_table if model.bias is not None else None
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / cfg["warmup"]))
     trainable = {n: p for n, p in model.named_parameters() if p.requires_grad}
     enc_params = list(model.encoder.parameters())
@@ -104,6 +114,8 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
         torch.nn.utils.clip_grad_norm_(trainable.values(), 1.0)
         opt.step()
         sched.step()
+        if table is not None and epoch == 100:
+            assert table.abs().max() > 0, "bias table still zero after 100 steps"
 
         model.eval()
         with torch.no_grad():
@@ -118,7 +130,8 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
             if bad >= cfg["patience"]:
                 break
         if epoch % 100 == 0:
-            log(f"epoch {epoch:4d} loss {step_loss.item():.4f} val_auroc {m['auroc']:.4f} best {best:.4f}@{best_epoch}")
+            log(f"epoch {epoch:4d} loss {step_loss.item():.4f} val_auroc {m['auroc']:.4f} best {best:.4f}@{best_epoch}"
+                + (f" max|bias| {table.abs().max().item():.3f}" if table is not None else ""))
     epochs = epoch + 1
     wall = time.time() - t0
 
@@ -132,6 +145,9 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
         logits = model(A_test).cpu()
     row.update(evaluate_edge_split(logits, split, seed=seed))
     row.update(val_auc=best, best_epoch=best_epoch, epochs=epochs, n_trainable=sum(p.numel() for p in trainable.values()),
-               pos_weight=pw.item(), sec_per_epoch=wall / epochs, wallclock_s=round(wall, 1),
+               pos_weight=pw.item(), n_train_edges=int(torch.triu(A_train, 1).sum().item()),
+               sec_per_epoch=wall / epochs, wallclock_s=round(wall, 1),
                peak_mem_gb=torch.cuda.max_memory_allocated() / 1e9 if device == "cuda" else None)
+    if table is not None:
+        row["bias_table"] = [[round(v, 4) for v in h] for h in table.detach().cpu().tolist()]
     return row, best_state, logits

@@ -5,6 +5,43 @@ this module may ever see held-out cells; tests/test_leaks.py enforces it.
 """
 import numpy as np
 import torch
+from torch import nn
+
+
+def spd_matrix_fast(A_obs: torch.Tensor, max_dist: int = 8) -> torch.Tensor:
+    """`spd_matrix` by boolean matmul on A's device (frontier expansion, one matmul per hop):
+    exact, int16 [N, N], ~30 ms on Cora on a GPU. Same bucket semantics as `spd_matrix`."""
+    N = A_obs.shape[0]
+    Af = (A_obs > 0).float()
+    reach = torch.eye(N, dtype=torch.bool, device=A_obs.device)
+    dist = torch.full((N, N), max_dist + 1, dtype=torch.int16, device=A_obs.device)
+    dist.fill_diagonal_(0)
+    frontier = reach.float()
+    for k in range(1, max_dist + 1):
+        new = (frontier @ Af > 0) & ~reach
+        if not new.any():
+            break
+        dist[new] = k
+        reach |= new
+        frontier = new.float()
+    return dist
+
+
+class SPDBias(nn.Module):
+    """Per-head learned lookup on shortest-path distance, added to every layer's pre-softmax
+    scores (Graphormer's spatial encoding; GTLM's SPD bias). Zero-init, so the model starts
+    exactly at the Phase-2 model. Bucket 0 (self) is fixed at 0, buckets 1..max_dist are exact
+    distances, bucket max_dist + 1 is "farther or unreachable" -- learned, never -inf."""
+
+    def __init__(self, heads: int, max_dist: int = 8):
+        super().__init__()
+        self.max_dist = max_dist
+        self.bias_table = nn.Parameter(torch.zeros(heads, max_dist + 2))
+
+    def forward(self, spd: torch.Tensor) -> torch.Tensor:
+        """spd int [N, N] -> bias [1, heads, N, N] fp32."""
+        b = self.bias_table[:, spd.long()] * (spd > 0).unsqueeze(0)
+        return b.unsqueeze(0)
 
 
 def spd_matrix(A_obs: torch.Tensor, max_dist: int = 8) -> torch.Tensor:

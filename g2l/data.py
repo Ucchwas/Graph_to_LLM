@@ -41,6 +41,16 @@ def mask_matrix(A: torch.Tensor, frac: float = 0.15, seed: int = 0):
     return A * (~hidden).float(), sup_mask
 
 
+def subsample_edges(A: torch.Tensor, frac: float, seed: int = 0) -> torch.Tensor:
+    """Keep a seeded fraction of the undirected edges (both directions dropped together)."""
+    iu, ju = torch.triu(A, 1).nonzero(as_tuple=True)
+    g = torch.Generator().manual_seed(seed)
+    keep = torch.rand(iu.numel(), generator=g) < frac
+    B = torch.zeros_like(A)
+    B[iu[keep], ju[keep]] = 1.0
+    return B + B.T
+
+
 def rewire_degree_preserving(A: torch.Tensor, seed: int = 0) -> torch.Tensor:
     """Random graph with the same degree sequence (double-edge swaps): the shuffled-adjacency
     control. Only degree information survives."""
