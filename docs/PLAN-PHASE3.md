@@ -43,10 +43,14 @@ encoders E2–E7.
 | arm | body | bias | encoder LR | trainables |
 |---|---|---|---|---|
 | pretrained + SPD | frozen Llama-3.2-1B | learned table (32 heads) | 1e-2 (Phase-2 selection) and ×⅓, ×3 | 9.82 M + 320 |
-| random + SPD | same config, seeded init | learned table | 3e-3 | 9.82 M + 320 |
-| scratch d256 L4 + SPD | 4-layer pre-LN transformer | learned table (8 heads) | 1e-3 | 3.9 M + 80 |
-| scratch d256 L1 + SPD | one transformer block — Tan et al.'s LLM2Trsf control | learned table | 1e-3 | ~1 M + 80 |
-| none | (Phase 2) | – | 3e-4 | 9.75 M |
+| random + SPD | same config, seeded init | learned table | 3e-3 (Phase-2 selection) and ×⅓, ×3 | 9.82 M + 320 |
+| scratch d256 L4 + SPD | 4-layer pre-LN transformer | learned table (8 heads) | 1e-3 (Phase-2 selection) | 3.9 M + 80 |
+| scratch d256 L1 + SPD | one transformer block — Tan et al.'s LLM2Trsf control | learned table | 1e-3 and ×⅓, ×3 (never searched before) | ~1 M + 80 |
+| none | no body | – | 3e-4 | 9.75 M |
+
+Every arm's bias-off counterpart is re-run at the Phase-3 commit (10 seeds), so each paired
+delta is single-commit; the Phase-2 rows (commit `1f1f33a`) become a cross-commit
+reproduction check on seeds 0–4 rather than a reference.
 
 Everything else (E1, LayerNorm gain T/√d, D1, decoder-input LayerNorm, masked-cell loss,
 warm-up, clip, patience 200 / 2000 epochs, evaluation) is the Phase-2 recipe unchanged.
@@ -60,9 +64,12 @@ warm-up, clip, patience 200 / 2000 epochs, evaluation) is the Phase-2 recipe unc
   the same bias. If 16 frozen pretrained layers + bias do not beat one trained block + bias,
   the LLM is not contributing. Pre-registered in PLAN-PHASE2 §9 as the first Phase-3
   control if Phase 2's pretrained-vs-random delta was null — it was (−0.009, p 0.11).
-- **Bias-off references at 10 seeds** so every paired delta has n = 10: none seeds 5–9,
-  scratch L4 seeds 5–9, scratch L1 seeds 0–9 (bias off). Pretrained and random already have
-  10 seeds from Phase 2.
+- **Bias-off references at 10 seeds, this commit**: pretrained, random, none, scratch L4,
+  scratch L1 (the last at its three encoder LRs). Every paired delta has n = 10 at one commit;
+  the same-seed Phase-2 rows must reproduce to within seed noise (printed by the aggregator).
+- **Zero-init inertness on the real body**: every row records `init` (first-batch decoder-input
+  norm, logit scale, per-layer RMS before any step); a biased row's `init` must equal its
+  bias-off counterpart's at the same seed (asserted by the aggregator over all frozen rows).
 - **Data-fraction sweep** (pre-registered in PLAN-PHASE2 §9 / docs/research/fpt.md,
   *conditional*): train edges kept at 10 / 25 / 50 % (val/test unchanged) for pretrained +
   SPD, random + SPD, none at the selected LRs — run only if pretrained + SPD ≈ random + SPD
@@ -71,33 +78,44 @@ warm-up, clip, patience 200 / 2000 epochs, evaluation) is the Phase-2 recipe unc
 
 ## 4. The array (one submission)
 
-Main stage, 240 runs, all 10 seeds, `python -m g2l.run_phase3 --stage main --list`:
+Main stage, 370 runs, all 10 seeds, `python -m g2l.run_phase3 --stage main --list`:
 
 | block | runs |
 |---|---|
 | pretrained + SPD, enc 1e-2 × bias LR {3e-3, 1e-2, 3e-2, 1e-1} | 40 |
-| pretrained + SPD, enc {3e-3, 3e-2} × bias LR {1e-2, 3e-2} | 40 |
 | random + SPD, enc 3e-3 × bias LR grid | 40 |
 | scratch L4 + SPD, scratch L1 + SPD × bias LR grid | 80 |
+| pretrained + SPD, enc {3e-3, 3e-2} × bias LR {1e-2, 3e-2} | 40 |
+| random + SPD, enc {1e-3, 1e-2} × bias LR {1e-2, 3e-2} | 40 |
+| scratch L1, enc {3e-4, 3e-3}: + SPD × bias LR {1e-2, 3e-2}, and bias off | 60 |
 | pretrained + SPD shuffled-A, bias LR {1e-2, 3e-2} | 20 |
-| bias-off references: none s5–9, scratch L4 s5–9, scratch L1 s0–9 | 20 |
+| bias-off references at this commit: pretrained, random, none, scratch L4, scratch L1 | 50 |
 
-Bias LR grid spans 1.5 decades around GTLM's 5e-3 … 4e-2. Estimated ≈ 20 GPU-hours
-(140 frozen-body runs; the probe measured the bias path at 0.76 s/epoch as a gather, cut to
-≈ 0.35 s/epoch by the one-hot-matmul formulation); `sbatch --array=0-15 --time=08:00:00
-slurm/phase3_grid.sbatch main 15` — 16 tasks, 15 runs each, inside the 32-job account cap;
-the time limit covers a chunk of 15 frozen runs that all hit the 2000-epoch cap.
+Bias LR grid spans 1.5 decades around GTLM's 5e-3 … 4e-2. 200 frozen-body runs at
+≈ 0.33 s/epoch (probe; the bias as a one-hot matmul, not a gather) ≈ 20 GPU-hours with the
+scratch runs. Submitted as `sbatch --array=0-3 slurm/phase3_node.sbatch main 24 4` — 4 tasks
+× 4 GPUs on one node, 24 runs per GPU (8 h limit covers 24 frozen runs at the 2000-epoch
+cap); fallback `sbatch --array=0-15 slurm/phase3_grid.sbatch main 24` (1 GPU per task).
 Before it: one probe job (`--probe`: biased arm 1 on the 512-node subgraph — loss halves,
-table moves, gradient at the table; full Cora s/epoch and peak memory with the bias).
+table moves, gradient at the table; full Cora s/epoch and peak memory with the bias), and an
+adversarial code review (runtime / science / aggregation lenses, each finding verified by
+reproduction). The review caught one blocker — `nn.TransformerEncoderLayer`'s eval-mode fast
+path casts a float mask to bool, so the scratch + SPD arms would have been *scored* with a
+hard self-only mask — fixed (`g2l/model.py`, `test_bias_survives_eval_mode`), together with
+the data-fraction test input (kept train edges + val, not the full train set), the
+scratch `layers` default on the extend stage, a per-run exception guard, and the symmetric
+LR neighbourhoods above. The first submission (job 449312) was cancelled 8 minutes in and
+its rows deleted.
 
 ## 5. Selection and statistics
 
 Per arm, (encoder LR, bias LR) is chosen by mean val AUROC over the 10 seeds; the edge rule
-applies to both grids (a point at the boundary is extended once, `extend:` stage). Test
-metrics reported at the selected setting; every comparison is a paired per-seed delta on the
-shared splits with SE, t, p and MDE (n = 10 everywhere). Phase-2 rows are the bias-off
-references (same seeds, same splits, same scorer; their commit `1f1f33a` differs from
-Phase 3's and is recorded as such).
+applies to both grids (a point at the boundary is extended once, `extend:` stage; the
+shuffled control's two-point bias-LR grid is exempt — it is a control, not a selection).
+Test metrics reported at the selected setting; every comparison is a paired per-seed delta
+on the shared splits with SE, t, p and MDE (n = 10 everywhere), between Phase-3 rows at one
+commit. Phase-2 rows (commit `1f1f33a`) are printed beside the bias-off
+references as a same-seed reproduction check.
 
 ## 6. Steps
 

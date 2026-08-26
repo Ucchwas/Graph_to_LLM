@@ -1,8 +1,8 @@
 #!/bin/bash
-# Usage: sbatch --array=0-3 --time=08:00:00 slurm/phase3_node.sbatch main 15 4
+# Usage: sbatch --array=0-3 slurm/phase3_node.sbatch main 24 4
 #   GPUS runs in parallel per task, one process per allocated GPU; task i, GPU g runs
 #   run-list chunk i*GPUS+g (same chunk semantics as phase3_grid.sbatch, so 4 tasks x 4 GPUs
-#   x 15 runs cover the 240-run main stage). Fewer array elements against the 32-job cap.
+#   x 24 runs cover the 370-run main stage). Fewer array elements against the 32-job cap.
 #SBATCH --job-name=g2l-p3
 #SBATCH --account=marlowe-m000211-pm06
 #SBATCH --partition=batch
@@ -11,7 +11,7 @@
 #SBATCH --gpus=4
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=256G
-#SBATCH --time=01:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=/scratch/m000211-pm06/%u/logs/%x-%A_%a.out
 set -euo pipefail
 module load slurm

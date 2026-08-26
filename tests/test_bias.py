@@ -109,3 +109,40 @@ def test_subsample_edges():
     assert 0.2 < frac < 0.4
     assert torch.equal(subsample_edges(A, 0.3, seed=0), B) and not torch.equal(subsample_edges(A, 0.3, seed=1), B)
     assert torch.equal(subsample_edges(A, 1.0, seed=0), A)
+
+
+def test_bias_survives_eval_mode():
+    """torch's eval-mode TransformerEncoderLayer fast path casts a float mask to bool -- the bias
+    would become a hard mask at every val/test pass; g2l.model disables it. With a non-zero
+    table, eval/no_grad output must equal train-mode output, and the scratch layer 0 must equal
+    softmax(QK^T/sqrt(d) + bias) V computed by hand."""
+    assert not torch.backends.mha.get_fastpath_enabled()
+    N = 40
+    A = graph(N, 0.1, 3)
+    for arm, body in (("random", tiny_body()), ("scratch", None)):
+        m = build_model(arm, N, D, 1.0, body=body, seed=0, bias=True)
+        with torch.no_grad():
+            m.bias.bias_table.normal_(0, 1.0)
+            m.bias.bias_table[:, 0] = 0
+        m.train()
+        out_train = m(A).detach()
+        m.eval()
+        with torch.no_grad():
+            out_eval = m(A)
+        assert torch.allclose(out_train, out_eval, atol=1e-5), arm
+    layer, H = m.body.enc.layers[0], m.body.heads  # the scratch model
+
+    def heads(t):
+        return t.view(1, N, H, D // H).transpose(1, 2)
+
+    with torch.no_grad():
+        x = m.encoder(A).unsqueeze(0)
+        b = m.attention_bias(A)[0]  # [H, N, N]
+        h = layer.norm1(x)
+        q, k, v = (h @ layer.self_attn.in_proj_weight.T + layer.self_attn.in_proj_bias).chunk(3, -1)
+        att = torch.softmax(heads(q) @ heads(k).transpose(-1, -2) / (D // H) ** 0.5 + b, -1) @ heads(v)
+        att = att.transpose(1, 2).reshape(1, N, D) @ layer.self_attn.out_proj.weight.T + layer.self_attn.out_proj.bias
+        ref = x + att
+        ref = ref + layer.linear2(torch.nn.functional.gelu(layer.linear1(layer.norm2(ref))))
+        assert torch.allclose(layer(x, src_mask=b), ref, atol=1e-5)
+        assert not torch.allclose(layer(x, src_mask=b), layer(x), atol=1e-3)  # the bias is not a no-op

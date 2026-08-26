@@ -9,6 +9,11 @@ from g2l.bias import SPDBias, spd_matrix_fast
 from g2l.decoders import D1Bilinear, D3PairMLP
 from g2l.encoders import E1Linear
 
+# nn.TransformerEncoderLayer's eval-mode fast path (torch._transformer_encoder_layer_fwd) casts a
+# float `mask` to bool, which would turn the additive SPD bias into a hard mask at every val/test
+# pass of the scratch arms; tests/test_bias.py::test_bias_survives_eval_mode guards this.
+torch.backends.mha.set_fastpath_enabled(False)
+
 
 class ScratchBody(nn.Module):
     """Pre-LN transformer trained from scratch: dropout 0, no positional embeddings, no final

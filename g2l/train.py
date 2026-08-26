@@ -138,14 +138,25 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
     res = model.load_state_dict(best_state, strict=False)
     assert not res.unexpected_keys
     # shuffled control: the same rewired graph is the input at train and test time, so tokens
-    # keep their (structureless) node identity and only real neighbourhood structure is removed
-    A_test = A_in if shuffle_input else observed_dense(test, N).to(device)
+    # keep their (structureless) node identity and only real neighbourhood structure is removed.
+    # data-fraction sweep: the test-time input is the kept train edges plus the val edges (the
+    # split's test input is the full train + val set, which would re-densify a graph the model
+    # never saw and re-insert edges it was supervised to call absent).
+    if shuffle_input:
+        A_test = A_in
+    elif train_frac < 1.0:
+        A_test = A_train.clone()
+        vi, vj = val.pos_edge_label_index.to(device)
+        A_test[vi, vj] = A_test[vj, vi] = 1.0
+    else:
+        A_test = observed_dense(test, N).to(device)
     model.eval()
     with torch.no_grad():
         logits = model(A_test).cpu()
     row.update(evaluate_edge_split(logits, split, seed=seed))
     row.update(val_auc=best, best_epoch=best_epoch, epochs=epochs, n_trainable=sum(p.numel() for p in trainable.values()),
                pos_weight=pw.item(), n_train_edges=int(torch.triu(A_train, 1).sum().item()),
+               n_test_input_edges=int(torch.triu(A_test, 1).sum().item()),
                sec_per_epoch=wall / epochs, wallclock_s=round(wall, 1),
                peak_mem_gb=torch.cuda.max_memory_allocated() / 1e9 if device == "cuda" else None)
     if table is not None:

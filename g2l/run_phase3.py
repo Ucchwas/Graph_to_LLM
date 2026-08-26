@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import pathlib
+import traceback
 
 import torch
 import yaml
@@ -35,22 +36,31 @@ def expand(cfg: dict, stage: str) -> list[dict]:
         for seed in (cfg["seeds"] if seeds is None else seeds):
             runs.append({**base, **kw, "seed": seed})
 
-    scratch = {"arm": "scratch", "width": cfg["scratch_width"], "lr": cfg["enc_lr"]["scratch"]}
+    def scratch(layers, **kw):
+        return {"arm": "scratch", "width": cfg["scratch_width"], "lr": cfg["enc_lr"]["scratch"], "layers": layers, **kw}
+
+    nb, central = cfg["enc_lr_neighbourhood"], cfg["lr_bias_central"]
     if stage == "main":
         for lb in cfg["lr_bias_grid"]:
             add(arm="pretrained", lr=cfg["enc_lr"]["pretrained"], lr_bias=lb)
             add(arm="random", lr=cfg["enc_lr"]["random"], lr_bias=lb)
             for L in cfg["scratch_layers"]:
-                add(**scratch, layers=L, lr_bias=lb)
-        for lr in cfg["enc_lr_neighbourhood"]["pretrained"]:
-            for lb in cfg["lr_bias_central"]:
-                add(arm="pretrained", lr=lr, lr_bias=lb)
-        for lb in cfg["lr_bias_central"]:  # shuffled-A: the bias sees the rewired graph too
+                add(**scratch(L), lr_bias=lb)
+        for arm in ("pretrained", "random"):  # encoder-LR neighbourhood at the central bias LRs
+            for lr in nb[arm]:
+                for lb in central:
+                    add(arm=arm, lr=lr, lr_bias=lb)
+        for lr in nb["scratch"]:  # scratch L1 never had an LR search: neighbourhood with and without the bias
+            for lb in central:
+                add(**scratch(1, lr=lr), lr_bias=lb)
+            add(**scratch(1, lr=lr), bias=False)
+        for lb in central:  # shuffled-A: the bias sees the rewired graph too
             add(arm="pretrained", lr=cfg["enc_lr"]["pretrained"], lr_bias=lb, input="shuffled")
-        # bias-off references that Phase 2 lacks at 10 seeds
-        add(arm="none", lr=cfg["enc_lr"]["none"], bias=False, seeds=[s for s in cfg["seeds"] if s >= 5])
-        add(**scratch, layers=4, bias=False, seeds=[s for s in cfg["seeds"] if s >= 5])
-        add(**scratch, layers=1, bias=False)
+        # bias-off references at this commit, all seeds (the Phase-2 rows become a reproduction check)
+        for arm in ("pretrained", "random", "none"):
+            add(arm=arm, lr=cfg["enc_lr"][arm], bias=False)
+        for L in cfg["scratch_layers"]:
+            add(**scratch(L), bias=False)
     elif stage == "fraction":  # conditional: pre-registered data-fraction sweep at the selected LRs
         for f in cfg["fractions"]:
             for arm in ("pretrained", "random"):
@@ -61,7 +71,7 @@ def expand(cfg: dict, stage: str) -> list[dict]:
         for e in cfg.get("extend", []):
             kw = {k: v for k, v in e.items() if k != "seeds"}
             if kw["arm"] == "scratch":
-                kw = {**scratch, **kw}
+                kw = scratch(kw.pop("layers", 4), **kw)
             add(seeds=e.get("seeds"), **kw)
     else:
         raise ValueError(stage)
@@ -86,11 +96,12 @@ def run_one(cfg: dict, run: dict, device: str, force: bool = False):
         print(f"skip {key} (row exists at this commit)")
         return
     print(f"run {key} @ {commit[:8]}", flush=True)
+    assert run["arm"] != "scratch" or run["layers"] > 0, f"scratch run without layers: {key}"
     data, split = get_split(run["seed"])
     body = make_body(cfg, run, device) if run["arm"] in FROZEN else None
     T = body.T if body is not None else cfg["T"]
     model = build_model(run["arm"], data.num_nodes, run["width"], T, body=body, decoder=run["decoder"],
-                        scratch_layers=run["layers"] or 4, seed=run["seed"], bias=run["bias"], max_dist=cfg["max_dist"])
+                        scratch_layers=run["layers"], seed=run["seed"], bias=run["bias"], max_dist=cfg["max_dist"])
     tcfg = {**cfg, "lr": run["lr"], "lr_bias": run.get("lr_bias") if run["bias"] else None}
     row, state, logits = train_run(model, data, split, tcfg, device, run["seed"],
                                    shuffle_input=run["input"] == "shuffled", train_frac=run["frac"])
@@ -189,10 +200,17 @@ def main():
             print(key_of(r))
         return
     idx = args.index if args.index is not None else int(os.environ["SLURM_ARRAY_TASK_ID"])
+    failed = []
     for k in range(idx * args.chunk, min((idx + 1) * args.chunk, len(runs))):
-        run_one(cfg, runs[k], device, force=args.force)
+        try:  # one bad configuration costs one row, not the rest of the chunk
+            run_one(cfg, runs[k], device, force=args.force)
+        except Exception:
+            traceback.print_exc()
+            failed.append(key_of(runs[k]))
         if device == "cuda":
             torch.cuda.empty_cache()
+    if failed:
+        raise SystemExit(f"{len(failed)} run(s) failed: {failed}")
 
 
 if __name__ == "__main__":

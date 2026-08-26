@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: sbatch --array=0-15 --time=05:00:00 slurm/phase3_grid.sbatch main 15
+# Usage: sbatch --array=0-15 slurm/phase3_grid.sbatch main 24   (1-GPU fallback for phase3_node.sbatch)
 #   task i runs run-list indices i*CHUNK .. i*CHUNK+CHUNK-1 sequentially (count from --list).
 #   QOS medium allows 32 submitted jobs per ACCOUNT (shared with teammates): keep arrays small.
 #SBATCH --job-name=g2l-p3
@@ -10,7 +10,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=01:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=/scratch/m000211-pm06/%u/logs/%x-%A_%a.out
 set -euo pipefail
 module load slurm
