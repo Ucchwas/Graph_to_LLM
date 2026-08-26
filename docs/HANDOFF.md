@@ -7,10 +7,10 @@ overturned the spec). Deep references: `docs/research/*.md`. Cluster facts as ob
 
 ## Where the project stands (2026-08-25)
 - **Phase 0 complete** (protocol foundation): `g2l/data.py`, `g2l/metrics.py`, `g2l/bias.py`;
-  21 tests green on both machines. Gate 0 signed via `python -m g2l.walkthrough --phase 0`.
+  22 tests green on both machines. Gate 0 signed via `python -m g2l.walkthrough --phase 0`.
 - **Phase 1 complete, Gate 1 awaiting the user's sign-off**: `baselines/` (identity/random
   controls, heuristics, feature-only, GAE/VGAE/GAT, scratch adjacency-row transformer).
-  Results produced on Marlowe (jobs 447738/447739) in `results/phase1/{table,scratch_sweep}.jsonl`,
+  Results produced on Marlowe (jobs 447748/447749) in `results/phase1/{table,scratch_sweep}.jsonl`,
   write-up in `results/phase1/RESULTS.md`, live check `python -m g2l.walkthrough --phase 1`.
   The first scratch sweep (old recipe) stalled at a degree-only solution in 22/25 seeds; its
   numbers are recorded in RESULTS.md and the file was not kept.
@@ -35,10 +35,11 @@ overturned the spec). Deep references: `docs/research/*.md`. Cluster facts as ob
 - Commits: author is the user (`git config user.name Ucchwas`, `user.email ucchwas09@gmail.com`);
   **never add a Claude co-author trailer**; **the user pushes**, not Claude.
 - Never store, print, or script passwords/tokens. The HF token (needed from Phase 2 for
-  gated Llama-3.2-1B) lives only in the user's env or `huggingface-cli login`.
+  gated Llama-3.2-1B) lives only in the user's env or `hf auth login` (the `huggingface-cli`
+  command is dead in huggingface-hub 1.x).
 - The user validates every gate; ask before writing code for the next phase or submitting
   jobs outside the agreed phase tasks. Anything beyond seconds-long tests runs on Marlowe.
-- Login nodes: edit, test, `uv pip install`, `huggingface-cli download`, `sbatch` only. No
+- Login nodes: edit, test, `uv pip install`, `hf download`, `sbatch` only. No
   training, no `torch.compile` warm-ups, no preprocessing loops. One GPU per job; many jobs.
 - No VS Code tunnels / Claude remote-control features (Marlowe policy). VS Code Remote-SSH
   does not work with Duo either — use the multiplexed WSL connection above.

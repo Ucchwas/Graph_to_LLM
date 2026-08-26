@@ -686,9 +686,9 @@ among your lab members or others and will help with reproducibility."
 module load slurm
 source /projects/m000211/envs/g2l/bin/activate
 export HF_HOME=/scratch/m000211/$USER/hf
-huggingface-cli login                     # for gated Llama; token lands in $HF_HOME, never in git
-huggingface-cli download meta-llama/Llama-3.2-1B --revision <pin-the-sha>
-huggingface-cli download Qwen/Qwen2.5-1.5B                    # ungated fallback
+hf auth login                           # for gated Llama; token lands in $HF_HOME, never in git
+hf download meta-llama/Llama-3.2-1B --revision <pin-the-sha>
+hf download Qwen/Qwen2.5-1.5B                    # ungated fallback
 python -c "from torch_geometric.datasets import Planetoid; Planetoid('/projects/m000211/data/pyg','Cora')"
 ```
 
@@ -771,7 +771,7 @@ Named examples: CPU benchmarks, storage benchmarks, deliberately thrashing swap,
 **"AI inference servers such as Ollama, vLLM, or SGLang"**.
 
 For us that means, on a login node: git, editing, `sbatch`, `squeue`, `rsync`, `pip install`,
-`apptainer pull`/`build`, `huggingface-cli download`. **Not**: training, `torch.compile` warmups,
+`apptainer pull`/`build`, `hf download`. **Not**: training, `torch.compile` warmups,
 dataset preprocessing loops, a Jupyter kernel doing real work, or any model serving.
 
 ### 9.3 Consequences
@@ -931,7 +931,7 @@ EOF
 python3 -m venv $PROJ/envs/g2l && source $PROJ/envs/g2l/bin/activate
 pip install -U pip wheel && pip install torch --index-url https://download.pytorch.org/whl/cu124
 pip install torch_geometric ogb transformers accelerate peft datasets hf_transfer wandb
-huggingface-cli download Qwen/Qwen2.5-1.5B          # ungated; Llama-3.2-1B needs licence acceptance
+hf download Qwen/Qwen2.5-1.5B          # ungated; Llama-3.2-1B needs licence acceptance
 python -c "from torch_geometric.datasets import Planetoid; Planetoid('$PYG_DATA_ROOT','Cora')"
 
 # --- smoke test on a real GPU (section 5), then

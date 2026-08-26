@@ -51,14 +51,20 @@ parentheses; LR chosen per width on seed-0 validation AUROC from {1e-3, 3e-4, 1e
 1. **The protocol gap flips rankings.** Balanced view: GAE 0.912 > PPR 0.900. True-prevalence
    view: PPR 0.031 > GAE 0.008 (4×); even Adamic-Adar (0.024) beats every trained model
    (≤0.008). Identical AUROC, ~50× smaller AP. Both views stay on every table.
-2. **Features alone predict nothing** (0.61 AUROC, lift 2). **Topology alone reaches 0.85**
-   (PPR, scratch). GAE/GAT combine both → 0.91. So the feature-topology interaction is worth
-   ~6 AUROC points on Cora.
-3. **The scratch adjacency-row transformer is flat in width**: 0.847 → 0.819 AUROC from
-   1.2 M to 211 M parameters, saturating at the topology-only ceiling. Phase 2's E1 model is
-   topology-only, so its reference line is 0.83–0.85 / 0.86–0.90 — not GAE's 0.91. At the
-   parameter count Phase 2 will train (~10 M: E1 + D1), the matched scratch points are
-   d256–d512: 0.825–0.836 / 0.865–0.872.
+2. **Features alone predict nothing** (0.61 AUROC, lift 2). PPR, using topology alone,
+   reaches 0.85; GAE/GAT with features reach 0.91.
+3. **The scratch adjacency-row transformer is flat in width** under this recipe: 0.847 →
+   0.819 AUROC from 1.2 M to 211 M parameters.
+
+**Erratum (2026-08-25, found while planning Phase 2).** An earlier version of this file
+called 0.85 a "topology-only ceiling" and made the scratch curve Phase 2's reference line.
+Both were wrong: `recon_bce` supervises edges that are *visible in the input row*, so an
+adjacency-row model can solve it by copying its input (train-visible AUROC → 0.999 while
+validation stalls at ~0.82); the scratch rows above are early-stopped pre-memorisation
+states. Under the masked-cell objective (CLAUDE.md §5.1) the same encoder + decoder with
+**no body and no features** reaches 0.915 / 0.927 on seed 0 (0.913–0.922 / 0.923–0.934 over
+three seeds). The scratch rows stand as the Phase-1 record of this recipe; Phase 2 re-runs
+the scratch curve under the masked-cell loss (docs/PLAN-PHASE2.md §1).
 
 ## Does not show
 - Anything about a pretrained LLM (Phase 2) or about features inside a transformer (E4/E5,
@@ -82,7 +88,7 @@ that the 527 balanced test negatives changed on every call (third-decimal AUC wo
   PPR α = 0.15; feature-only logistic regression on [x_i ‖ x_j ‖ x_i ⊙ x_j], class-balanced;
   scratch: 4 pre-LN layers, 8 heads, GELU, dropout 0.1, AdamW wd 0.01, grad-clip 1.0,
   bilinear decoder W = 0.1·I at init.
-- Phase-2 reference lines: topology-only 0.85 / 0.90 (PPR); matched-parameter scratch
-  0.825–0.836 / 0.865–0.872; feature-using 0.91 / 0.91 (GAE, GAT).
+- Reference rows carried into every later table: identity, random, PPR 0.850 / 0.900 /
+  AP-sparse 0.031, GAE-600ep 0.905 / 0.912, GAT 0.910 / 0.911 (loss named per row).
 
 VALIDATED: ____________

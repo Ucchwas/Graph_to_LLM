@@ -105,6 +105,7 @@ already-locally-validated scratch sweep as the first job array, `HF_HUB_OFFLINE=
 job reproduces a local number; RESULTS.md signed.
 
 ### Phase 2 — Frozen LLM core: no bias, no LoRA (~1–1.5 weeks)
+**Detailed plan: `docs/PLAN-PHASE2.md` (2026-08-25) — supersedes this section where they differ: masked-cell loss is primary, arm 4 re-run under it, 5 seeds paired, decoder-input norm, E4 deferred to Phase 4.**
 Local bring-up: E1+D1/D3+frozen Llama (loading recipe above), N≤512 overfit smoke;
 `attn_mode` config field exists now (AR hedge). Tests landing: 4-D-mask canary (runs at
 every training start, both machines), zero-bias==no-mask parity, base-LLM parity,
