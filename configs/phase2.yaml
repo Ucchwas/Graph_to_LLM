@@ -10,10 +10,28 @@ weight_decay: 0.01
 warmup: 100
 max_epochs: 2000
 patience: 200
-seeds: [0, 1, 2, 3, 4]
+seeds: [0, 1, 2, 3, 4]  # LR selection uses these. Pre-registered seed extension (plan §8.3,
+                        # triggered by |pretrained - random| < MDE): arms 1/3 at the selected LR
+                        # on seeds 5-9, produced with this file's `seeds` set to [5..9] and
+                        # `extend` reduced to the two selected-LR entries (job 449155).
 checkpointing: false    # decided by the probe
 scratch_widths: [128, 256, 512, 1024, 2048]
 scratch_layers: 4
 d3_hidden: 512
-selected_lr: {}         # arm -> lr, filled after the D1 grid (step 5)
-extend: []              # LR-grid edge rule: [{arm: ..., lr: ...}] added after the D1 grid
+selected_lr:            # argmax of mean val AUROC after edge-rule extension (settled 2026-08-26)
+  pretrained: 1.0e-2    # val 0.8785; 3e-2 dips to 0.8393 -> interior
+  none: 3.0e-4          # val 0.9105, interior on the base grid
+  random: 3.0e-3        # val 0.8892; 1e-2 dips to 0.8853 -> interior
+extend:                 # LR-grid edge rule, three rounds on 2026-08-26 (all rows at 1f1f33a):
+  # round 1: argmax on the base-grid edge -> one step (x3) further
+  - {arm: pretrained, lr: 3.0e-3}            # val 0.683 -> 0.718 -> 0.800 -> 0.848, still rising
+  - {arm: random, lr: 3.0e-3}                # 0.761 -> 0.770 -> 0.850 -> 0.889, still rising
+  - {arm: scratch, width: 128, lr: 3.0e-3}   # 0.809 -> 0.861 -> 0.879 -> 0.889, still rising
+  - {arm: scratch, width: 256, lr: 3.0e-3}   # 0.884 @ 1e-3 > 0.868 @ 3e-3 -> settled at 1e-3
+  - {arm: scratch, width: 1024, lr: 3.0e-5}  # lower edge: 0.844 @ 1e-4 > 0.800 @ 3e-5 -> settled at 1e-4
+  # round 2
+  - {arm: pretrained, lr: 1.0e-2}            # 0.879, still rising
+  - {arm: random, lr: 1.0e-2}                # 0.885 < 0.889 -> settled at 3e-3
+  - {arm: scratch, width: 128, lr: 1.0e-2}   # 0.880 < 0.889 -> settled at 3e-3
+  # round 3
+  - {arm: pretrained, lr: 3.0e-2}            # 0.839 < 0.879 -> settled at 1e-2

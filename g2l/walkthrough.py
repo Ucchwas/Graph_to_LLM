@@ -130,7 +130,9 @@ def phase2(key: str | None = None):
         logits = model(observed_dense(split[2], data.num_nodes).to(device)).cpu()
     saved = torch.load(runs / f"{key}.logits.pt").float()
     live = evaluate_edge_split(logits, split, seed=stored["seed"])
-    print(f"  max |logit delta| vs Marlowe: {(logits - saved).abs().max().item():.4f}  (saved logits are fp16)")
+    delta = (logits - saved).abs().max().item()
+    print(f"  max |logit delta| vs Marlowe: {delta:.4f}  (saved logits are fp16; measured 0.0078 on 2026-08-26, locked at 0.02)")
+    assert delta < 0.02, f"laptop recomputation drifted from the cluster logits: {delta:.4f}"
     for k in ("auc", "ap", "ap_sparse"):
         print(f"  {k:10s} live={live[k]:.5f}  marlowe={stored[k]:.5f}")
 

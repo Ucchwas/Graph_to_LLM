@@ -34,14 +34,16 @@ def arm_label(r: dict) -> str:
     return arm + (f" ({', '.join(tags)})" if tags else "")
 
 
-def select_lr(rows: list[dict], grid: list[float]) -> dict[str, dict]:
-    """Per configuration: the LR with the best mean validation AUROC; flags grid edges."""
+def select_lr(rows: list[dict], grid: list[float], seeds: list[int] | None = None) -> dict[str, dict]:
+    """Per configuration: the LR with the best mean validation AUROC over the base seeds; flags
+    grid edges. Rows from extra seeds (the pre-registered 10-seed extension) count at the
+    selected LR but never in the selection."""
     by = defaultdict(lambda: defaultdict(list))
     for r in rows:
         by[arm_label(r)][r["lr"]].append(r)
     out = {}
     for label, lrs in by.items():
-        curve = {lr: float(np.mean([r["val_auc"] for r in rs])) for lr, rs in lrs.items()}
+        curve = {lr: float(np.mean([r["val_auc"] for r in rs if seeds is None or r["seed"] in seeds])) for lr, rs in lrs.items()}
         best = max(curve, key=curve.get)
         edge = len(curve) > 1 and best in (min(curve), max(curve)) and best in (min(grid), max(grid))
         out[label] = {"lr": best, "rows": lrs[best], "curve": curve, "edge": edge}
@@ -103,21 +105,21 @@ def deltas(selected: dict) -> str:
 
 
 def lr_curves(selected: dict) -> str:
-    lines = ["| model | " + " | ".join(f"val AUROC @ {lr:.0e}" for lr in sorted(next(iter(selected.values()))["curve"], reverse=True)) + " |"]
-    lines.append("|---|" + "---|" * (len(lines[0].split("|")) - 3))
+    lrs = sorted({lr for s in selected.values() for lr in s["curve"]}, reverse=True)
+    lines = ["| model | " + " | ".join(f"val AUROC @ {lr:.0e}" for lr in lrs) + " |", "|---|" + "---|" * len(lrs)]
     for label, s in selected.items():
-        lines.append(f"| {label} | " + " | ".join(f"{s['curve'][lr]:.4f}" if lr in s["curve"] else "–" for lr in sorted(s["curve"], reverse=True)) + " |")
+        lines.append(f"| {label} | " + " | ".join(f"{s['curve'][lr]:.4f}" + (" *" if lr == s["lr"] else "") if lr in s["curve"] else "–" for lr in lrs) + " |")
     return "\n".join(lines)
 
 
 def main():
     import yaml
 
-    grid = yaml.safe_load(open("configs/phase2.yaml"))["lr_grid"]
+    cfg = yaml.safe_load(open("configs/phase2.yaml"))
     rows = load_rows()
     if not rows:
         raise SystemExit("no rows")
-    selected = select_lr(rows, grid)
+    selected = select_lr(rows, cfg["lr_grid"], cfg["seeds"])
     print(f"{len(rows)} rows @ {rows[0]['commit'][:8]}\n")
     print(table(selected), "\n")
     print("Validation-AUROC curves (mean over seeds):\n")
