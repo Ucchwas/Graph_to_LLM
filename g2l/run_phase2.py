@@ -203,6 +203,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage")
     ap.add_argument("--index", type=int, default=None)
+    ap.add_argument("--chunk", type=int, default=1, help="runs per task: task i runs indices i*chunk .. i*chunk+chunk-1")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--probe", action="store_true")
     ap.add_argument("--force", action="store_true")
@@ -219,7 +220,10 @@ def main():
             print(key_of(r))
         return
     idx = args.index if args.index is not None else int(os.environ["SLURM_ARRAY_TASK_ID"])
-    run_one(cfg, runs[idx], device, force=args.force)
+    for k in range(idx * args.chunk, min((idx + 1) * args.chunk, len(runs))):
+        run_one(cfg, runs[k], device, force=args.force)
+        if device == "cuda":
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
