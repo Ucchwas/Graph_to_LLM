@@ -41,6 +41,18 @@ def mask_matrix(A: torch.Tensor, frac: float = 0.15, seed: int = 0):
     return A * (~hidden).float(), sup_mask
 
 
+def rewire_degree_preserving(A: torch.Tensor, seed: int = 0) -> torch.Tensor:
+    """Random graph with the same degree sequence (double-edge swaps): the shuffled-adjacency
+    control. Only degree information survives."""
+    import networkx as nx
+    import numpy as np
+
+    G = nx.from_numpy_array(A.cpu().numpy())
+    m = G.number_of_edges()
+    nx.double_edge_swap(G, nswap=10 * m, max_tries=1000 * m, seed=seed)
+    return torch.from_numpy(nx.to_numpy_array(G, nodelist=range(A.shape[0]), dtype=np.float32))
+
+
 def collate(graphs: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]]) -> DenseBatch:
     """Pad variable-size graphs to a common N. Padded cells never enter loss or metrics."""
     B = len(graphs)

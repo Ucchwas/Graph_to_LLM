@@ -43,7 +43,7 @@ not GAE. PPR (0.850 / 0.900 / AP-sparse 0.031) stays as the heuristic reference.
 | LR selection | seed-0 val, then seeds | full grid × 5 seeds; LR per arm by **mean val AUROC over seeds**; **edge rule**: if the argmax sits on a grid edge, extend one decade that way (5 more runs) before the arm counts | Phase 1 selected an edge LR for 4 of 5 widths; the FPT rebuttal's point is that orderings change with LR |
 | trainable count | ~12.7 M | 9,746,432 + 4,096 (decoder norm) + 67,584 RMSNorm (arms 1/3) | computed from the code |
 | E4 (features) | draft: conditional extension | **dropped from Phase 2** | its premise ("E1 arms sit at a 0.85 ceiling") was false; it changes the question (topology+features) and has no arm 4; features come in Phase 4 with the crossing control |
-| shuffled-adjacency control | Phase 3 | **added now** for arms 1 and 2 at the selected LR (CLAUDE.md §8: "from day one") | cheap (10 runs); degree-preserving rewiring of the observed graph must drop every arm to the degree-only level |
+| shuffled-adjacency control | Phase 3 | **added now** for arms 1 and 2 at the selected LR (CLAUDE.md §8: "from day one") | cheap (10 runs). One degree-preserving rewiring of the train graph is the input at train *and* test time. A rewired row is still a unique **node identity**, and a bilinear decoder can factorise the real train adjacency from identities alone (measured, arm 2 seed 0: 0.799 / 0.815 shuffled vs 0.913 / 0.925 real), so the control measures identity-only performance; the gap to the real input is what neighbourhood structure contributes. It is not expected to fall to the degree-only 0.65 |
 | encoder-gradient hook (GWC) | available behind a flag | **dropped** | AdamW updates are invariant to a uniform gradient scale; a 65× smaller encoder gradient is not a vanishing gradient. Encoder grad norm is logged as a > 0 sanity check only |
 | local bring-up | laptop N ≤ 512 overfit | Marlowe probe job | user rule: anything beyond seconds-long runs on Marlowe |
 
@@ -205,8 +205,10 @@ Gate 2 is judged on.
 
 **Step 6 — D3 (array of 15, or the full grid if cheap).**
 
-**Step 7 — controls (array of 40).** Shuffled-A (degree-preserving rewiring of the observed
-graph everywhere the model sees it; must collapse to the degree-only level ≈ 0.65); the
+**Step 7 — controls (array of 40).** Shuffled-A (one degree-preserving rewiring of the train
+graph as the input at train and test time; reports identity-only performance — the gap to
+the real-input row is the value of structure, and a real-input arm that does *not* beat its
+shuffled row has learned nothing from the graph); the
 `recon_bce` row for arm 2 (documents the shortcut: train-visible AUROC ≈ 1, validation
 collapse, test ≈ 0.84); the encoder-gain-1 row for arm 2 (documents the scale effect).
 
@@ -227,7 +229,7 @@ identity 0.500 / lift 1.0 and random at chance · every arm either converged or 
 recorded plateau diagnosis (arm 3 may legitimately plateau: extended LR grid tried, RMS
 profile and encoder grad norms attached) · no LR at a grid edge without the extension ·
 paired D1 delta table with SE/t/MDE on three columns · arm-4 curve under this loss · D3
-table · shuffled-A collapses · `recon_bce` and gain-1 rows recorded · T and drift numbers
+table · every real-input arm beats its shuffled-A row · `recon_bce` and gain-1 rows recorded · T and drift numbers
 recorded · walkthrough run by the user and signed.
 
 ## 5. Tests landing in Phase 2 (exact assertions)
@@ -289,14 +291,15 @@ never in the repo.
 - **Dev/prod split**: code written on Python 3.14 runs on 3.10 — cluster `pytest` after every
   rsync, before every `sbatch`; tests are device-agnostic.
 
-## 8. Decisions needed before code is written
+## 8. Decisions (taken by the user 2026-08-25)
 
-1. Confirm the reversal on the loss: masked-cell objective as the primary protocol, arm 4
-   re-run under it, `recon_bce` kept only as the arm-2 shortcut control.
-2. D3 scope: selected-LR only (15 runs, default) or the full grid (45).
-3. Seeds: 5 with the pre-registered extension to 10 for arms 1/3 if the paired Δ is below
-   the MDE (default), or 10 from the start (+45 runs).
-4. Confirmation that the Llama 3.2 license is accepted and a token exists on your side.
+1. Loss reversal confirmed: masked-cell objective is the primary protocol, arm 4 re-run
+   under it, `recon_bce` kept only as the arm-2 shortcut control.
+2. D3 at the selected LR only (15 runs).
+3. 5 seeds, with the pre-registered extension to 10 for arms 1/3 if the paired Δ is below
+   the MDE.
+4. Llama 3.2 license accepted and a token created (user-held; staged on the login node in
+   step 2). The probe lives in `g2l/run_phase2.py --probe` (not a separate file).
 
 ## 9. Not in Phase 2 (recorded in RESULTS.md "does not show")
 
