@@ -82,9 +82,11 @@ Main stage, 240 runs, all 10 seeds, `python -m g2l.run_phase3 --stage main --lis
 | pretrained + SPD shuffled-A, bias LR {1e-2, 3e-2} | 20 |
 | bias-off references: none s5–9, scratch L4 s5–9, scratch L1 s0–9 | 20 |
 
-Bias LR grid spans 1.5 decades around GTLM's 5e-3 … 4e-2. Estimated 17–18 GPU-hours
-(140 frozen-body runs at ≈ 0.4 s/epoch); `sbatch --array=0-15 --time=05:00:00
-slurm/phase3_grid.sbatch main 15` — 16 tasks, 15 runs each, inside the 32-job account cap.
+Bias LR grid spans 1.5 decades around GTLM's 5e-3 … 4e-2. Estimated ≈ 20 GPU-hours
+(140 frozen-body runs; the probe measured the bias path at 0.76 s/epoch as a gather, cut to
+≈ 0.35 s/epoch by the one-hot-matmul formulation); `sbatch --array=0-15 --time=08:00:00
+slurm/phase3_grid.sbatch main 15` — 16 tasks, 15 runs each, inside the 32-job account cap;
+the time limit covers a chunk of 15 frozen runs that all hit the 2000-epoch cap.
 Before it: one probe job (`--probe`: biased arm 1 on the 512-node subgraph — loss halves,
 table moves, gradient at the table; full Cora s/epoch and peak memory with the bias).
 

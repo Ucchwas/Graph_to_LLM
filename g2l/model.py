@@ -41,8 +41,7 @@ class GraphLLM(nn.Module):
     def attention_bias(self, A):
         if self.bias is None:
             return None
-        b = self.bias(spd_matrix_fast(A, self.bias.max_dist))
-        return b.to(self.body.dtype) if hasattr(self.body, "dtype") else b
+        return self.bias(spd_matrix_fast(A, self.bias.max_dist), dtype=getattr(self.body, "dtype", torch.float32))
 
     def embed(self, A):
         h = self.encoder(A)

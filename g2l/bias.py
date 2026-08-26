@@ -38,9 +38,14 @@ class SPDBias(nn.Module):
         self.max_dist = max_dist
         self.bias_table = nn.Parameter(torch.zeros(heads, max_dist + 2))
 
-    def forward(self, spd: torch.Tensor) -> torch.Tensor:
-        """spd int [N, N] -> bias [1, heads, N, N] fp32."""
-        b = self.bias_table[:, spd.long()] * (spd > 0).unsqueeze(0)
+    def forward(self, spd: torch.Tensor, dtype=torch.float32) -> torch.Tensor:
+        """spd int [N, N] -> bias [1, heads, N, N] in `dtype`. Written as one-hot(spd) x table so
+        the backward is a reduction GEMM instead of a scatter-add of N^2 x heads elements into
+        10 slots (0.44 s/epoch on Cora as a gather, ~20 ms this way). Bucket 0 (self) is
+        excluded, which also fixes the diagonal at 0."""
+        buckets = torch.arange(1, self.max_dist + 2, device=spd.device).view(-1, 1, 1)
+        onehot = (spd.unsqueeze(0) == buckets).to(dtype)  # [K-1, N, N]
+        b = torch.einsum("hk,knm->hnm", self.bias_table[:, 1:].to(dtype), onehot)
         return b.unsqueeze(0)
 
 
