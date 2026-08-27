@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 from baselines.common import observed_dense, recon_bce
 from g2l.data import mask_matrix, rewire_degree_preserving, subsample_edges
-from g2l.metrics import evaluate_edge_split, evaluate_pairs
+from g2l.metrics import evaluate_edge_split, evaluate_pairs, hits_at_k
 from g2l.model import param_groups
 
 
@@ -157,6 +157,11 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
     with torch.no_grad():
         logits = model(A_test).cpu()
     row.update(evaluate_edge_split(logits, split, seed=seed))
+    if hasattr(val, "hits_neg_edge_label_index"):  # ogbl-ddi: the official metric on the validation negatives too
+        with torch.no_grad():
+            Lv = model(A_in).cpu()
+        hn = val.hits_neg_edge_label_index
+        row["val_hits20"] = hits_at_k(Lv[val.pos_edge_label_index[0], val.pos_edge_label_index[1]], Lv[hn[0], hn[1]])
     row.update(val_auc=best, best_epoch=best_epoch, epochs=epochs, n_trainable=sum(p.numel() for p in trainable.values()),
                pos_weight=pw.item(), n_train_edges=int(torch.triu(A_train, 1).sum().item()),
                n_test_input_edges=int(torch.triu(A_test, 1).sum().item()),

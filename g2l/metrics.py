@@ -54,10 +54,18 @@ def evaluate_pairs(pos_logits: torch.Tensor, neg_logits: torch.Tensor) -> dict:
 
 
 @torch.no_grad()
+def hits_at_k(pos_logits: torch.Tensor, neg_logits: torch.Tensor, k: int = 20) -> float:
+    """OGB Hits@K: the fraction of positives scored above the K-th highest negative."""
+    kth = torch.topk(neg_logits.float(), k).values[-1]
+    return float((pos_logits.float() > kth).float().mean())
+
+
+@torch.no_grad()
 def evaluate_edge_split(logits_full: torch.Tensor, split, seed: int = 0) -> dict:
     """Score a full [N, N] logit matrix under the edge-split protocol.
 
     auc/ap: the published-comparable column (test pos + the split's sampled negs).
+    hits20: only when the test split carries official negatives (ogbl-ddi).
     *_sparse/lift: the honest column over every scorable cell (~3.66M on Cora).
     Scores are symmetrized so direction conventions cannot matter.
     """
@@ -71,7 +79,7 @@ def evaluate_edge_split(logits_full: torch.Tensor, split, seed: int = 0) -> dict
     )
     mask, target = sparse_eval_mask(train, val, test)
     sp = evaluate(L, target, mask, seed=seed)
-    return {
+    out = {
         "auc": pairs["auroc"],
         "ap": pairs["ap"],
         "auroc_sparse": sp["auroc"],
@@ -79,3 +87,7 @@ def evaluate_edge_split(logits_full: torch.Tensor, split, seed: int = 0) -> dict
         "lift": sp["lift"],
         "base_rate": sp["base_rate"],
     }
+    if hasattr(test, "hits_neg_edge_label_index"):  # ogbl-ddi: the official negatives, Hits@20
+        hn = test.hits_neg_edge_label_index
+        out["hits20"] = hits_at_k(L[test.pos_edge_label_index[0], test.pos_edge_label_index[1]], L[hn[0], hn[1]])
+    return out

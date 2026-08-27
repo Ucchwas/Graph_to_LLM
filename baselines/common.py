@@ -8,13 +8,14 @@ import time
 
 import torch
 
-from g2l.data import dense_adjacency, edge_split, load_cora
+from g2l.data import dense_adjacency
 from g2l.metrics import evaluate_edge_split
 
 
-def get_split(seed: int):
-    data = load_cora()
-    return data, edge_split(data, seed=seed)
+def get_split(seed: int, dataset: str = "cora"):
+    from g2l.datasets import load_graph
+
+    return load_graph(dataset, seed)
 
 
 def recon_bce(logits_full: torch.Tensor, pos_edge_index: torch.Tensor, num_nodes: int) -> torch.Tensor:
@@ -30,15 +31,15 @@ def recon_bce(logits_full: torch.Tensor, pos_edge_index: torch.Tensor, num_nodes
     return torch.nn.functional.binary_cross_entropy_with_logits(logits, labels)
 
 
-def run_baseline(name: str, seed: int, score_fn) -> dict:
+def run_baseline(name: str, seed: int, score_fn, dataset: str = "cora") -> dict:
     """score_fn(data, split, device) -> full [N, N] logits. Returns one table row."""
     torch.manual_seed(seed)
-    data, split = get_split(seed)
+    data, split = get_split(seed, dataset)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     t0 = time.time()
     logits = score_fn(data, split, device)
     row = evaluate_edge_split(logits.cpu(), split, seed=seed)
-    row.update(model=name, seed=seed, wallclock_s=round(time.time() - t0, 1))
+    row.update(model=name, seed=seed, dataset=dataset, wallclock_s=round(time.time() - t0, 1))
     return row
 
 

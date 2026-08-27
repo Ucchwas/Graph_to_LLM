@@ -104,7 +104,13 @@ architectures **frozen at random init** (the reservoir control that separates "t
 does width or depth matter on one graph; where the LGM v0 sits against the linear control.
 Whatever the answer, it is the control every GFM result in Phase 5 is paired against.
 
-**Phase 5 — GFM integrated end to end (starts when §4 is answered; runs beside Phase 4).**
+**Phase 5 — dataset feasibility and smoke test (inserted 2026-08-27, `PLAN-PHASE5.md`).** The
+selected Phase-4 model (raw rows → GCN → residual GCN block → bilinear decoder, unchanged) on
+Cora / ogbl-ddi / Amazon Photo, one seed, with heuristic and featureless-autoencoder baselines;
+PPI (24 graphs of different sizes) downloaded and analysed, its design held for approval. The
+Phase-4 10-seed confirmation waits behind it. The GFM and multi-graph phases below shift by one.
+
+**GFM integrated end to end (starts when §4 is answered; runs beside Phase 4).**
 `gfm` body (or tokenizer + `gt` on top: the "integrate GFM architecture into the end-to-end
 network" configuration) behind the existing interfaces, own LR group, leakage check, three
 arms: GFM from checkpoint, GFM from scratch, GFM + structure-biased `gt`. Controls: GFM +

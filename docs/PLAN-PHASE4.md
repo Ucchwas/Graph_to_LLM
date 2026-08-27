@@ -1,5 +1,9 @@
 # Phase 4 — LGM v0: raw adjacency → GNN backbone (trained end to end) → graph out
 
+> Status 2026-08-27: architecture selected (direct route, GCN, hidden 1024, 2 layers, lr 3e-3;
+> `results/phase4/{sweep,direct,width}/aggregate.md`). **The 10-seed confirmation is paused** by
+> the user in favour of the dataset-feasibility phase, `PLAN-PHASE5.md`.
+
 Written 2026-08-27 after the laptop smoke; the `main` grid below is pre-registered before any
 of its rows exist. Direction: Dr. Islam (LGM, not LLM; `PLAN-LGM.md`) and Sakib ("use the GNNs
 as backbone first; our GFM also uses a GNN backbone; with the GFM you cannot tell which part

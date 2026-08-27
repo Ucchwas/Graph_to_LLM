@@ -51,19 +51,20 @@ class GATEncoder(nn.Module):
         return self.conv2(torch.nn.functional.elu(self.conv1(x, edge_index)), edge_index)
 
 
-def make_score_fn(kind: str, max_epochs=1000, patience=100, fixed_epochs=None):
+def make_score_fn(kind: str, max_epochs=1000, patience=100, fixed_epochs=None, featureless=False):
     """fixed_epochs: train exactly that many epochs, final state, no selection --
-    the 2107.02658 reference protocol (their 90.6/91.2 comes from 600 epochs)."""
+    the 2107.02658 reference protocol (their 90.6/91.2 comes from 600 epochs).
+    featureless: X = I (Kipf & Welling's GAE* / VGAE* rows), so the first GCN weight is per node."""
     def score(data, split, device):
         from torch_geometric.nn import GAE, VGAE
 
         train, val, test = split
         variational = kind == "vgae"
-        enc = {"gae": GCNEncoder, "vgae": VariationalGCNEncoder, "gat": GATEncoder}[kind](data.num_features)
+        enc = {"gae": GCNEncoder, "vgae": VariationalGCNEncoder, "gat": GATEncoder}[kind](data.num_nodes if featureless else data.num_features)
         model = (VGAE(enc) if variational else GAE(enc)).to(device)
         opt = (torch.optim.Adam(model.parameters(), lr=0.01) if kind == "gat"
                else torch.optim.Adam(model.parameters(), lr=0.01))
-        x = data.x.to(device)
+        x = torch.eye(data.num_nodes, device=device) if featureless else data.x.to(device)
         ei = {k: s.edge_index.to(device) for k, s in zip(("train", "val", "test"), split)}
         pos = train.pos_edge_label_index.to(device)
 
