@@ -19,9 +19,10 @@ from g2l.aggregate import COLS, fmt, paired_delta
 
 PHASES = {"3": ("results/phase3/rows", "results/phase2/rows", "configs/phase3.yaml"),
           "3b": ("results/phase3b/rows", "results/phase3/rows", "configs/phase3b.yaml"),
-          "4": ("results/phase4/rows", "results/phase3/rows", "configs/phase4.yaml"),
-          "4d": ("results/phase4/direct/rows", "results/phase4/smoke/rows", "configs/phase4.yaml")}
-PRIOR = {"3": "Phase 2", "3b": "Phase 3", "4": "Phase 3", "4d": "Phase 4 smoke"}
+          "4s": ("results/phase4/sweep/rows", "results/phase4/smoke/rows", "configs/phase4.yaml"),   # stage 1, 3 seeds
+          "4d": ("results/phase4/direct/rows", "results/phase4/smoke/rows", "configs/phase4.yaml"),  # direct vs E1, 3 seeds
+          "4": ("results/phase4/final/rows", "results/phase4/sweep/rows", "configs/phase4.yaml")}     # stage 2, 10 seeds
+PRIOR = {"3": "Phase 2", "3b": "Phase 3", "4s": "Phase 4 smoke", "4d": "Phase 4 smoke", "4": "Phase 4 sweep"}
 CONTROLS = ("shuffled-A",)  # never selected or extended: the edge rule does not apply
 INIT_KEYS = ("z_norm", "logit_diag", "logit_offdiag_std", "logit_train_edge", "layer_rms")
 PAIRS = [("pretrained + SPD", "pretrained"), ("random + SPD", "random"), ("pretrained + SPD", "none"),
