@@ -48,20 +48,24 @@ def phase2_refs(p2: list[dict], cfg2: dict) -> dict[str, list[dict]]:
 
 
 def select(rows: list[dict], cfg: dict) -> dict[str, dict]:
-    """Per label, the (encoder LR, bias LR) cell with the best mean val AUROC; `edge` if it sits on
-    the boundary of either grid (controls exempt); `short` lists cells with fewer rows than seeds."""
+    """Per label, the (encoder LR, bias LR) cell with the best mean val AUROC over the base seeds
+    (`cfg['seeds']`; extension seeds never take part in selection, they only enter the deltas);
+    `edge` if the best sits on the boundary of either grid (controls exempt); `short` lists cells
+    with fewer base-seed rows than seeds."""
+    base = set(cfg["seeds"])
     by = defaultdict(lambda: defaultdict(list))
     for r in rows:
         by[label(r)][(r["lr"], r.get("lr_bias") if r["bias"] else None)].append(r)
     out = {}
     for lab, cells in by.items():
-        curve = {k: float(np.mean([r["val_auc"] for r in rs])) for k, rs in cells.items()}
+        n_base = {k: sum(r["seed"] in base for r in rs) for k, rs in cells.items()}
+        curve = {k: float(np.mean([r["val_auc"] for r in rs if r["seed"] in base])) for k, rs in cells.items() if n_base[k]}
         best = max(curve, key=curve.get)
         lrs = sorted({k[0] for k in curve})
         lbs = sorted({k[1] for k in curve if k[1] is not None})
         control = any(c in lab for c in CONTROLS)
         edge = not control and ((len(lrs) > 1 and best[0] in (lrs[0], lrs[-1])) or (len(lbs) > 1 and best[1] in (lbs[0], lbs[-1])))
-        short = {k: len(rs) for k, rs in cells.items() if len(rs) < len(cfg["seeds"])}
+        short = {k: n for k, n in n_base.items() if n < len(base)}
         out[lab] = {"key": best, "rows": cells[best], "curve": curve, "edge": edge, "short": short}
     return out
 

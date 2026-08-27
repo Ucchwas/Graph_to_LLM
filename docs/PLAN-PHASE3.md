@@ -130,6 +130,21 @@ delta is the reported result; the n = 10 delta is reported beside it. If p > 0.0
 applies to Q1 and Q2. Selection is never re-run on the added seeds (the cell is fixed by the
 first 10, as in Phase 2), so the extension cannot change which configuration is reported.
 
+**Follow-up array (written 2026-08-26 after aggregating the main stage; `configs/phase3.yaml`
+`extend:`).** All three pre-registered items in one submission of 380 runs:
+- *Edge rule fired* for pretrained + SPD, scratch L4 + SPD, scratch L1 + SPD (bias LR 1e-1,
+  top of the grid, monotone for the pretrained arm), random + SPD (bias LR 3e-3, bottom of
+  the grid) and scratch L1 bias-off (enc LR 3e-3, top). Two ×3 steps past each edge (3e-1 and
+  1.0; 1e-3 and 3e-4; 1e-2 and 3e-2) so a monotone curve turns over inside this round.
+- *Seed rule fired* for Q1 (Δ +0.012, p 0.13, MDE 0.023) and Q3 (Δ −0.002, p 0.80, MDE 0.019;
+  vs scratch L1 + SPD Δ +0.012, p 0.06, MDE 0.018). Seeds 10–19 are run at **every candidate
+  cell** (the main-stage winner and both extension points) of pretrained + SPD, random + SPD,
+  scratch L4/L1 + SPD, and at their bias-off references, so whichever cell wins on seeds 0–9
+  has n = 20 without another round. Selection uses seeds 0–9 only (`aggregate3.select`).
+- *Fraction sweep condition met* (pretrained + SPD ≈ random + SPD): train edges kept at
+  10 / 25 / 50 % for pretrained + SPD and random + SPD at the main-stage selection
+  (1e-2 / 1e-1 and 3e-3 / 3e-3) and none at 3e-4, 10 seeds each.
+
 ## 6. Steps
 
 1. Commit; rsync the tree to Marlowe (new phase → new pinned commit); cluster `pytest`.
