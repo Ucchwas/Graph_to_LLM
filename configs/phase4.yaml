@@ -1,0 +1,37 @@
+# Phase 4 -- LGM v0: raw adjacency -> row tokenizer -> GNN backbone trained end to end -> bilinear
+# decoder -> predicted adjacency. Sakib (2026-08-27): "use the GNNs as backbone first; our GFM
+# also uses a GNN backbone; with the GFM you cannot tell which part works". docs/PLAN-LGM.md
+model_id: meta-llama/Llama-3.2-1B     # only for frozen-LLM reference rows on the cluster
+revision: 4e20de362430cd3b72f300e6b0f18e50e7166e08
+T: 0.987007                            # token scale: encoder LayerNorm gain T / sqrt(d), as in Phases 2-3
+d_model: 2048                          # width of the `none` / Llama reference rows
+mask_frac: 0.15
+max_dist: 8
+lr_norm: 1.0e-4
+weight_decay: 0.01
+warmup: 100
+max_epochs: 2000
+patience: 200
+seeds: [0, 1, 2]
+smoke:        # laptop pipeline check: does raw adjacency -> GNN -> decoder train and predict at all?
+  kinds: [gcn, sage, gin, gat]
+  widths: [256]
+  layers: [2]
+  lr: [1.0e-3, 3.0e-3]
+  dropout: 0.0
+  references:
+    - {arm: none, lr: 3.0e-4, width: 2048}   # the Phase-3 linear model: 0.918 AUROC on seeds 0-19
+main:         # pre-registered 2026-08-27 (docs/PLAN-PHASE4.md section 4); Marlowe, seeds 0-9; 770 runs
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  kinds: [gcn, gat, sage, gin]
+  widths: [256, 1024]
+  layers: [2, 4, 8]
+  lr: [1.0e-3, 3.0e-3, 1.0e-2]
+  dropout: 0.0
+  references:
+    - {arm: gnn, kind: gcn, width: 256, layers: 2, lr: 3.0e-3, input: shuffled}   # Q3 control
+    - {arm: gnn, kind: gat, width: 256, layers: 2, lr: 3.0e-3, input: shuffled}
+    - {arm: none, lr: 3.0e-4, width: 2048}                                       # Phase-3 selections at this commit
+    - {arm: random, lr: 3.0e-3, bias: true, lr_bias: 3.0, width: 2048}
+    - {arm: pretrained, lr: 1.0e-2, bias: true, lr_bias: 1.0, width: 2048}
+  extend: []
