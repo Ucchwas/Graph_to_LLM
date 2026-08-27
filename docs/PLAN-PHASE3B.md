@@ -1,5 +1,10 @@
 # Phase 3B — LoRA on the frozen body, with the structural bias
 
+**Status: not run.** Cancelled 2026-08-27 before any submission, after Dr. Islam redirected the
+project to a graph-native LGM ([PLAN-LGM.md](PLAN-LGM.md)); the code (peft LoRA on the frozen
+body, `lora` stage, tests, sbatch) is in the tree and tested, the array was never submitted.
+The final Phase-3 selection this stage would have used is random + SPD at bias LR 3.0, not 3e-3.
+
 Written 2026-08-26 while the Phase-3 top-up (job 450168) runs; numbers below are the Phase-3
 state at that moment and will be replaced by the final Phase-3 selection before submission.
 Approved direction (user, 2026-08-26): finish Phase 3, run LoRA once for a definitive answer,

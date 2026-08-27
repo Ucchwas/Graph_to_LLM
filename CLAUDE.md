@@ -2,6 +2,15 @@
 
 Context and build plan for this repository. Read this fully before writing code.
 
+> **Redirection, 2026-08-27 (Dr. Islam): we are building an LGM, not an LLM.** Raw adjacency /
+> edges → a graph-native large model, trained end to end → graph output. The graph is never
+> turned into embeddings by an external model; the lab GFM's *architecture* may be integrated
+> into the trained network. Consequences for the rules below: the body is a trainable
+> graph-native model (`gt`, later `gfm`); the frozen pretrained LLM is a baseline row, not the
+> centre; "frozen LLM body / never unfreeze / LoRA only / no GNN encoder" are superseded.
+> Everything else here (raw rows in, graph out, masked-cell loss, metrics, controls, no
+> verbalization, no tokenizer) stands. Plan: `docs/PLAN-LGM.md`. Evidence: `results/phase3/RESULTS.md`.
+
 ---
 
 ## 1. What we are building

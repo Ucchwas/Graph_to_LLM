@@ -1,3 +1,5 @@
+# NOT RUN. Phase 3B was cancelled on 2026-08-27 before submission (docs/PLAN-LGM.md): the
+# project is a graph-native LGM, and this stage only answered a question about the frozen LLM.
 # Phase 3B -- LoRA on the frozen bodies, with the Phase-3 structural bias. See docs/PLAN-PHASE3B.md.
 # Everything not listed here is the Phase-3 recipe (configs/phase3.yaml) unchanged.
 model_id: meta-llama/Llama-3.2-1B
@@ -15,7 +17,7 @@ seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]   
 checkpointing: false
 enc_lr: {pretrained: 1.0e-2, random: 3.0e-3, none: 3.0e-4}
 # Final Phase-3 selection per frozen arm (encoder LR, bias LR) -- filled after the Phase-3 top-up.
-selected: {pretrained: {lr: 1.0e-2, lr_bias: 1.0}, random: {lr: 3.0e-3, lr_bias: 3.0e-3}}
+selected: {pretrained: {lr: 1.0e-2, lr_bias: 1.0}, random: {lr: 3.0e-3, lr_bias: 3.0}}  # final Phase-3 selection
 # LoRA r 16, alpha 32, dropout 0.05 on all seven projections of every layer (~11.3 M params),
 # zero-init B, own AdamW group without weight decay, adapters in fp32 under the bf16 autocast.
 lora: {r: 16, alpha: 32, dropout: 0.05, targets: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}

@@ -23,7 +23,7 @@ enc_lr_neighbourhood: {pretrained: [3.0e-3, 3.0e-2], random: [1.0e-3, 1.0e-2], s
 lr_bias_grid: [3.0e-3, 1.0e-2, 3.0e-2, 1.0e-1]   # 1.5 decades around GTLM's 5e-3 .. 4e-2
 lr_bias_central: [1.0e-2, 3.0e-2]                # used with the enc-LR neighbourhood and the shuffled control
 fractions: [0.1, 0.25, 0.5]   # pre-registered data-fraction sweep (conditional stage): train edges kept; val/test unchanged
-selected: {pretrained: {lr: 1.0e-2, lr_bias: 1.0}, random: {lr: 3.0e-3, lr_bias: 3.0e-3}}  # final (job 449913); the fraction runs below used the main-stage selection (pretrained lr_bias 1e-1, job 449496)
+selected: {pretrained: {lr: 1.0e-2, lr_bias: 1.0}, random: {lr: 3.0e-3, lr_bias: 3.0}}  # final after the top-up (job 450168); random sits on the top of the bias-LR grid (val 1.0 -> 3.0: +0.002) and is not extended -- the phase is closed by the 2026-08-27 redirection (docs/PLAN-LGM.md). The fraction runs used the main-stage selection (pretrained lr_bias 1e-1, random 3e-3; job 449913)
 # Follow-up array, written 2026-08-26 after the main stage was aggregated; one submission, all
 # three pre-registered items (docs/PLAN-PHASE3.md §5):
 #   edge rule   -- two x3 steps past each flagged grid edge, so a monotone curve turns over here

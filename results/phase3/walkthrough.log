@@ -11,10 +11,10 @@ tests/test_llm_real.py::test_encoder_scale_matches_real_T
     warnings.warn(
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-23 passed, 2 warnings in 23.83s
+23 passed, 2 warnings in 13.36s
 
 -- pretrained_spd_real_f1.0_lr1e-02_lb1e+00_s0: rebuild on the laptop from C:\Users\ucchw\AppData\Local\g2l\phase3\pretrained_spd_real_f1.0_lr1e-02_lb1e+00_s0.pt --
-Loading weights:   0%|          | 0/146 [00:00<?, ?it/s]Loading weights: 100%|██████████| 146/146 [00:00<00:00, 12636.31it/s]
+Loading weights:   0%|          | 0/146 [00:00<?, ?it/s]Loading weights: 100%|██████████| 146/146 [00:00<00:00, 6857.74it/s]
   max |logit delta| vs Marlowe: 0.0078  (saved logits are fp16; locked at 0.02)
   auc        live=0.91884  marlowe=0.91884
   ap         live=0.92465  marlowe=0.92465
@@ -24,56 +24,46 @@ tests/test_llm_real.py::test_encoder_scale_matches_real_T
   d0:+0.000  d1:-1.195  d2:-1.406  d3:-1.172  d4:+0.423  d5:+0.223  d6:+0.081  d7:-0.075  d8:+0.408  d9:+0.632
   head spread at d1 7.469, d9 4.882; max |bias| 19.490
 
--- table and paired deltas (results/phase3/rows vs Phase-2 references) --
+-- table and paired deltas (results/phase3/rows; previous phase as reproduction check) --
 
-750 Phase-3 rows @ a60dc60d; Phase-2 rows @ 1f1f33a7 (reproduction check only)
+870 Phase-3 rows @ a60dc60d; Phase 2 rows @ 1f1f33a7 (reproduction check only)
 
-| model | enc lr | bias lr | n | AUROC | AP@1:1 | AUROC(sparse) | AP(sparse) | lift | best epoch | s/epoch |
-|---|---|---|---|---|---|---|---|---|---|---|
-| pretrained (Phase 2) | 1e-02 | – | 10 | 0.878±0.017 | 0.892±0.016 | 0.877±0.018 | 0.0107±0.0035 | 74 | 449 | 0.30 |
-| random (Phase 2) | 3e-03 | – | 10 | 0.887±0.008 | 0.899±0.009 | 0.887±0.008 | 0.0116±0.0025 | 81 | 409 | 0.44 |
-| none (Phase 2) | 3e-04 | – | 5 | 0.920±0.003 | 0.930±0.005 | 0.920±0.002 | 0.0146±0.0039 | 101 | 302 | 0.04 |
-| scratch d256 L4 (Phase 2) | 1e-03 | – | 5 | 0.870±0.003 | 0.876±0.002 | 0.872±0.006 | 0.0035±0.0007 | 24 | 432 | 0.05 |
-| none train 10% | 3e-04 | – | 10 | 0.590±0.021 | 0.615±0.015 | 0.588±0.017 | 0.0004±0.0001 | 3 | 58 | 0.05 |
-| none train 25% | 3e-04 | – | 10 | 0.617±0.018 | 0.646±0.016 | 0.615±0.014 | 0.0005±0.0001 | 3 | 72 | 0.05 |
-| none train 50% | 3e-04 | – | 10 | 0.695±0.017 | 0.724±0.021 | 0.695±0.018 | 0.0017±0.0011 | 12 | 130 | 0.05 |
-| none | 3e-04 | – | 20 | 0.918±0.006 | 0.932±0.006 | 0.917±0.007 | 0.0175±0.0044 | 121 | 315 | 0.05 |
-| pretrained | 1e-02 | – | 20 | 0.881±0.014 | 0.895±0.014 | 0.881±0.015 | 0.0112±0.0033 | 78 | 462 | 0.30 |
-| pretrained + SPD train 10% | 1e-02 | 1e-01 | 10 | 0.570±0.022 | 0.576±0.027 | 0.570±0.018 | 0.0002±0.0000 | 2 | 24 | 0.32 |
-| pretrained + SPD train 25% | 1e-02 | 1e-01 | 10 | 0.598±0.017 | 0.623±0.022 | 0.600±0.011 | 0.0005±0.0004 | 3 | 90 | 0.33 |
-| pretrained + SPD train 50% | 1e-02 | 1e-01 | 10 | 0.644±0.027 | 0.667±0.033 | 0.645±0.025 | 0.0005±0.0004 | 4 | 136 | 0.33 |
-| pretrained + SPD | 1e-02 EDGE | 1e+00 | 20 | 0.909±0.011 | 0.921±0.011 | 0.908±0.013 | 0.0121±0.0040 | 84 | 324 | 0.33 |
-| pretrained + SPD shuffled-A | 1e-02 | 3e-02 | 10 | 0.688±0.037 | 0.710±0.037 | 0.687±0.039 | 0.0008±0.0003 | 5 | 346 | 0.32 |
-| random | 3e-03 | – | 20 | 0.889±0.008 | 0.902±0.008 | 0.890±0.009 | 0.0128±0.0028 | 89 | 447 | 0.30 |
-| random + SPD train 10% | 3e-03 | 3e-03 | 10 | 0.593±0.018 | 0.604±0.021 | 0.590±0.017 | 0.0003±0.0001 | 2 | 25 | 0.32 |
-| random + SPD train 25% | 3e-03 | 3e-03 | 10 | 0.609±0.022 | 0.638±0.021 | 0.609±0.015 | 0.0004±0.0001 | 3 | 31 | 0.32 |
-| random + SPD train 50% | 3e-03 | 3e-03 | 10 | 0.651±0.014 | 0.676±0.021 | 0.655±0.014 | 0.0004±0.0001 | 3 | 29 | 0.33 |
-| random + SPD | 3e-03 | 3e-03 | 20 | 0.891±0.010 | 0.904±0.011 | 0.891±0.007 | 0.0131±0.0025 | 91 | 424 | 0.32 |
-| scratch d256 L1 | 3e-03 | – | 20 | 0.877±0.014 | 0.883±0.016 | 0.876±0.015 | 0.0046±0.0021 | 32 | 431 | 0.04 |
-| scratch d256 L1 + SPD | 1e-03 EDGE | 1e+00 | 20 | 0.889±0.008 | 0.891±0.011 | 0.889±0.010 | 0.0045±0.0013 | 31 | 259 | 0.07 |
-| scratch d256 L4 | 1e-03 | – | 20 | 0.870±0.016 | 0.876±0.017 | 0.871±0.017 | 0.0037±0.0012 | 26 | 410 | 0.05 |
-| scratch d256 L4 + SPD | 1e-03 EDGE | 1e+00 | 20 | 0.895±0.010 | 0.895±0.013 | 0.895±0.009 | 0.0039±0.0013 | 27 | 272 | 0.09 | 
+| model | enc lr | bias lr | LoRA lr | n | AUROC | AP@1:1 | AUROC(sparse) | AP(sparse) | lift | best epoch | s/epoch |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| none (Phase 2) | 3e-04 | – | – | 5 | 0.920±0.003 | 0.930±0.005 | 0.920±0.002 | 0.0146±0.0039 | 101 | 302 | 0.04 |
+| pretrained (Phase 2) | 1e-02 | – | – | 10 | 0.878±0.017 | 0.892±0.016 | 0.877±0.018 | 0.0107±0.0035 | 74 | 449 | 0.30 |
+| random (Phase 2) | 3e-03 | – | – | 10 | 0.887±0.008 | 0.899±0.009 | 0.887±0.008 | 0.0116±0.0025 | 81 | 409 | 0.44 |
+| scratch d256 L4 (Phase 2) | 1e-03 | – | – | 5 | 0.870±0.003 | 0.876±0.002 | 0.872±0.006 | 0.0035±0.0007 | 24 | 432 | 0.05 |
+| none train 10% | 3e-04 | – | – | 10 | 0.590±0.021 | 0.615±0.015 | 0.588±0.017 | 0.0004±0.0001 | 3 | 58 | 0.05 |
+| none train 25% | 3e-04 | – | – | 10 | 0.617±0.018 | 0.646±0.016 | 0.615±0.014 | 0.0005±0.0001 | 3 | 72 | 0.05 |
+| none train 50% | 3e-04 | – | – | 10 | 0.695±0.017 | 0.724±0.021 | 0.695±0.018 | 0.0017±0.0011 | 12 | 130 | 0.05 |
+| none | 3e-04 | – | – | 20 | 0.918±0.006 | 0.932±0.006 | 0.917±0.007 | 0.0175±0.0044 | 121 | 315 | 0.05 |
+| pretrained | 1e-02 | – | – | 20 | 0.881±0.014 | 0.895±0.014 | 0.881±0.015 | 0.0112±0.0033 | 78 | 462 | 0.30 |
+| pretrained + SPD train 10% | 1e-02 | 1e-01 | – | 10 | 0.570±0.022 | 0.576±0.027 | 0.570±0.018 | 0.0002±0.0000 | 2 | 24 | 0.32 |
+| pretrained + SPD train 25% | 1e-02 | 1e-01 | – | 10 | 0.598±0.017 | 0.623±0.022 | 0.600±0.011 | 0.0005±0.0004 | 3 | 90 | 0.33 |
+| pretrained + SPD train 50% | 1e-02 | 1e-01 | – | 10 | 0.644±0.027 | 0.667±0.033 | 0.645±0.025 | 0.0005±0.0004 | 4 | 136 | 0.33 |
+| pretrained + SPD | 1e-02 | 1e+00 | – | 20 | 0.909±0.011 | 0.921±0.011 | 0.908±0.013 | 0.0121±0.0040 | 84 | 324 | 0.33 |
+| pretrained + SPD shuffled-A | 1e-02 | 3e-02 | – | 10 | 0.688±0.037 | 0.710±0.037 | 0.687±0.039 | 0.0008±0.0003 | 5 | 346 | 0.32 |
+| random | 3e-03 | – | – | 20 | 0.889±0.008 | 0.902±0.008 | 0.890±0.009 | 0.0128±0.0028 | 89 | 447 | 0.30 |
+| random + SPD train 10% | 3e-03 | 3e-03 | – | 10 | 0.593±0.018 | 0.604±0.021 | 0.590±0.017 | 0.0003±0.0001 | 2 | 25 | 0.32 |
+| random + SPD train 25% | 3e-03 | 3e-03 | – | 10 | 0.609±0.022 | 0.638±0.021 | 0.609±0.015 | 0.0004±0.0001 | 3 | 31 | 0.32 |
+| random + SPD train 50% | 3e-03 | 3e-03 | – | 10 | 0.651±0.014 | 0.676±0.021 | 0.655±0.014 | 0.0004±0.0001 | 3 | 29 | 0.33 |
+| random + SPD | 3e-03 EDGE | 3e+00 | – | 20 | 0.922±0.006 | 0.929±0.007 | 0.923±0.007 | 0.0101±0.0027 | 70 | 211 | 0.33 |
+| scratch d256 L1 | 3e-03 | – | – | 20 | 0.877±0.014 | 0.883±0.016 | 0.876±0.015 | 0.0046±0.0021 | 32 | 431 | 0.04 |
+| scratch d256 L1 + SPD | 1e-03 | 1e+00 | – | 20 | 0.889±0.008 | 0.891±0.011 | 0.889±0.010 | 0.0045±0.0013 | 31 | 259 | 0.07 |
+| scratch d256 L4 | 1e-03 | – | – | 20 | 0.870±0.016 | 0.876±0.017 | 0.871±0.017 | 0.0037±0.0012 | 26 | 410 | 0.05 |
+| scratch d256 L4 + SPD | 1e-03 | 1e+00 | – | 20 | 0.895±0.010 | 0.895±0.013 | 0.895±0.009 | 0.0039±0.0013 | 27 | 272 | 0.09 | 
 
-Same-seed reproduction of the Phase-2 bias-off rows at this commit:
+Same-seed reproduction of the Phase 2 rows at this commit:
 
-| arm | seeds | Phase-2 AUROC | Phase-3 AUROC | mean abs Δ | max abs Δ |
+| arm | seeds | previous AUROC | this phase AUROC | mean abs Δ | max abs Δ |
 |---|---|---|---|---|---|
+| none | 5 | 0.920±0.003 | 0.920±0.003 | 0.0000 | 0.0000 |
 | pretrained | 10 | 0.878±0.017 | 0.878±0.017 | 0.0000 | 0.0000 |
 | random | 10 | 0.887±0.008 | 0.887±0.008 | 0.0000 | 0.0000 |
-| none | 5 | 0.920±0.003 | 0.920±0.003 | 0.0000 | 0.0000 |
 | scratch d256 L4 | 5 | 0.870±0.003 | 0.869±0.005 | 0.0068 | 0.0124 | 
 
-inertness at init: 480 biased rows compared with their bias-off counterpart (z_norm, logit_diag, logit_offdiag_std, logit_train_edge, layer_rms); 16 mismatch(es) above 1e-3 relative
-  pretrained_spd_real_f1.0_lr1e-02_lb1e+00_s2: 2.21e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb1e+00_s4: 6.00e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb1e+00_s5: 1.13e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb1e+00_s6: 2.07e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb1e+00_s7: 3.50e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb3e-01_s2: 2.21e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb3e-01_s4: 6.00e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb3e-01_s5: 1.13e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb3e-01_s6: 2.07e-03
-  pretrained_spd_real_f1.0_lr1e-02_lb3e-01_s7: 3.50e-03 
+inertness at init: 600 biased / LoRA rows compared with their plain counterpart (z_norm, logit_diag, logit_offdiag_std, logit_train_edge, layer_rms); 0 mismatch(es) above 1e-2 relative 
 
 Paired per-seed deltas (all rows at this commit):
 
@@ -82,15 +72,15 @@ Paired per-seed deltas (all rows at this commit):
 | pretrained + SPD − pretrained | auc | 20 | +0.0286 | 0.0037 | +7.76 | 0.000 | 0.0109 |
 | pretrained + SPD − pretrained | ap | 20 | +0.0253 | 0.0036 | +7.13 | 0.000 | 0.0105 |
 | pretrained + SPD − pretrained | ap_sparse | 20 | +0.0009 | 0.0011 | +0.83 | 0.414 | 0.0033 |
-| random + SPD − random | auc | 20 | +0.0017 | 0.0022 | +0.75 | 0.464 | 0.0066 |
-| random + SPD − random | ap | 20 | +0.0013 | 0.0023 | +0.56 | 0.585 | 0.0069 |
-| random + SPD − random | ap_sparse | 20 | +0.0003 | 0.0007 | +0.41 | 0.683 | 0.0021 |
+| random + SPD − random | auc | 20 | +0.0331 | 0.0018 | +18.74 | 0.000 | 0.0052 |
+| random + SPD − random | ap | 20 | +0.0261 | 0.0017 | +15.41 | 0.000 | 0.0050 |
+| random + SPD − random | ap_sparse | 20 | -0.0027 | 0.0006 | -4.19 | 0.000 | 0.0019 |
 | pretrained + SPD − none | auc | 20 | -0.0088 | 0.0022 | -4.02 | 0.001 | 0.0064 |
 | pretrained + SPD − none | ap | 20 | -0.0116 | 0.0019 | -5.97 | 0.000 | 0.0057 |
 | pretrained + SPD − none | ap_sparse | 20 | -0.0054 | 0.0009 | -5.76 | 0.000 | 0.0028 |
-| pretrained + SPD − random + SPD | auc | 20 | +0.0185 | 0.0034 | +5.49 | 0.000 | 0.0099 |
-| pretrained + SPD − random + SPD | ap | 20 | +0.0169 | 0.0033 | +5.16 | 0.000 | 0.0097 |
-| pretrained + SPD − random + SPD | ap_sparse | 20 | -0.0010 | 0.0010 | -1.00 | 0.332 | 0.0029 |
+| pretrained + SPD − random + SPD | auc | 20 | -0.0129 | 0.0025 | -5.21 | 0.000 | 0.0073 |
+| pretrained + SPD − random + SPD | ap | 20 | -0.0078 | 0.0021 | -3.76 | 0.001 | 0.0062 |
+| pretrained + SPD − random + SPD | ap_sparse | 20 | +0.0020 | 0.0009 | +2.16 | 0.044 | 0.0027 |
 | pretrained + SPD − scratch d256 L4 + SPD | auc | 20 | +0.0145 | 0.0035 | +4.17 | 0.001 | 0.0103 |
 | pretrained + SPD − scratch d256 L4 + SPD | ap | 20 | +0.0258 | 0.0034 | +7.49 | 0.000 | 0.0102 |
 | pretrained + SPD − scratch d256 L4 + SPD | ap_sparse | 20 | +0.0082 | 0.0009 | +9.35 | 0.000 | 0.0026 |
@@ -103,9 +93,9 @@ Paired per-seed deltas (all rows at this commit):
 | scratch d256 L1 + SPD − scratch d256 L1 | auc | 20 | +0.0128 | 0.0038 | +3.33 | 0.004 | 0.0113 |
 | scratch d256 L1 + SPD − scratch d256 L1 | ap | 20 | +0.0083 | 0.0041 | +2.00 | 0.059 | 0.0122 |
 | scratch d256 L1 + SPD − scratch d256 L1 | ap_sparse | 20 | -0.0001 | 0.0005 | -0.22 | 0.830 | 0.0016 |
-| random + SPD − none | auc | 20 | -0.0273 | 0.0026 | -10.54 | 0.000 | 0.0076 |
-| random + SPD − none | ap | 20 | -0.0285 | 0.0025 | -11.33 | 0.000 | 0.0074 |
-| random + SPD − none | ap_sparse | 20 | -0.0044 | 0.0009 | -4.68 | 0.000 | 0.0028 |
+| random + SPD − none | auc | 20 | +0.0041 | 0.0020 | +2.05 | 0.055 | 0.0060 |
+| random + SPD − none | ap | 20 | -0.0037 | 0.0015 | -2.45 | 0.024 | 0.0045 |
+| random + SPD − none | ap_sparse | 20 | -0.0074 | 0.0011 | -6.47 | 0.000 | 0.0034 |
 | pretrained − none | auc | 20 | -0.0374 | 0.0032 | -11.73 | 0.000 | 0.0094 |
 | pretrained − none | ap | 20 | -0.0369 | 0.0030 | -12.21 | 0.000 | 0.0089 |
 | pretrained − none | ap_sparse | 20 | -0.0063 | 0.0011 | -5.85 | 0.000 | 0.0032 |
@@ -165,11 +155,11 @@ pretrained + SPD train 50% — mean val AUROC (rows: encoder LR; columns: bias L
 
 pretrained + SPD — mean val AUROC (rows: encoder LR; columns: bias LR; * selected; (n) if fewer rows than seeds)
 
-| enc lr | 1e+00 | 3e-01 | 1e-01 | 3e-02 | 1e-02 | 3e-03 |
-|---|---|---|---|---|---|---|
-| 3e-02 | – | – | – | 0.8437 | 0.7875 | – |
-| 1e-02 | 0.9057 * | 0.8895 | 0.8893 | 0.8861 | 0.8813 | 0.8798 |
-| 3e-03 | – | – | – | 0.8755 | 0.8672 | – |
+| enc lr | 3e+00 | 1e+00 | 3e-01 | 1e-01 | 3e-02 | 1e-02 | 3e-03 |
+|---|---|---|---|---|---|---|---|
+| 3e-02 | – | – | – | – | 0.8437 | 0.7875 | – |
+| 1e-02 | 0.9042 | 0.9057 * | 0.8895 | 0.8893 | 0.8861 | 0.8813 | 0.8798 |
+| 3e-03 | – | – | – | – | 0.8755 | 0.8672 | – |
 
 pretrained + SPD shuffled-A — mean val AUROC (rows: encoder LR; columns: bias LR; * selected; (n) if fewer rows than seeds)
 
@@ -197,68 +187,80 @@ random + SPD train 50% — mean val AUROC (rows: encoder LR; columns: bias LR; *
 
 random + SPD — mean val AUROC (rows: encoder LR; columns: bias LR; * selected; (n) if fewer rows than seeds)
 
-| enc lr | 1e-01 | 3e-02 | 1e-02 | 3e-03 | 1e-03 | 3e-04 |
-|---|---|---|---|---|---|---|
-| 1e-02 | – | 0.8844 | 0.8805 | – | – | – |
-| 3e-03 | 0.8911 | 0.8899 | 0.8881 | 0.8968 * | 0.8865 | 0.8929 |
-| 1e-03 | – | 0.8768 | 0.8763 | – | – | – |
+| enc lr | 3e+00 | 1e+00 | 3e-01 | 1e-01 | 3e-02 | 1e-02 | 3e-03 | 1e-03 | 3e-04 |
+|---|---|---|---|---|---|---|---|---|---|
+| 1e-02 | – | – | – | – | 0.8844 | 0.8805 | – | – | – |
+| 3e-03 | 0.9197 * | 0.9178 | 0.9073 | 0.8911 | 0.8899 | 0.8881 | 0.8968 | 0.8865 | 0.8929 |
+| 1e-03 | – | – | – | – | 0.8768 | 0.8763 | – | – | – |
 
 scratch d256 L1 — mean val AUROC by encoder LR (* selected): 3e-02 0.8278, 1e-02 0.8736, 3e-03 0.8861 *, 1e-03 0.8827, 3e-04 0.8624
 
 scratch d256 L1 + SPD — mean val AUROC (rows: encoder LR; columns: bias LR; * selected; (n) if fewer rows than seeds)
 
-| enc lr | 1e+00 | 3e-01 | 1e-01 | 3e-02 | 1e-02 | 3e-03 |
-|---|---|---|---|---|---|---|
-| 3e-03 | – | – | – | 0.8843 | 0.8870 | – |
-| 1e-03 | 0.8924 * | 0.8907 | 0.8907 | 0.8845 | 0.8858 | 0.8849 |
-| 3e-04 | – | – | – | 0.8578 | 0.8601 | – |
+| enc lr | 3e+00 | 1e+00 | 3e-01 | 1e-01 | 3e-02 | 1e-02 | 3e-03 |
+|---|---|---|---|---|---|---|---|
+| 3e-03 | – | – | – | – | 0.8843 | 0.8870 | – |
+| 1e-03 | 0.8913 | 0.8924 * | 0.8907 | 0.8907 | 0.8845 | 0.8858 | 0.8849 |
+| 3e-04 | – | – | – | – | 0.8578 | 0.8601 | – |
 
 scratch d256 L4 + SPD — mean val AUROC (rows: encoder LR; columns: bias LR; * selected; (n) if fewer rows than seeds)
 
-| enc lr | 1e+00 | 3e-01 | 1e-01 | 3e-02 | 1e-02 | 3e-03 |
-|---|---|---|---|---|---|---|
-| 1e-03 | 0.9043 * | 0.8978 | 0.8981 | 0.8810 | 0.8811 | 0.8784 |
+| enc lr | 3e+00 | 1e+00 | 3e-01 | 1e-01 | 3e-02 | 1e-02 | 3e-03 |
+|---|---|---|---|---|---|---|---|
+| 1e-03 | 0.9033 | 0.9043 * | 0.8978 | 0.8981 | 0.8810 | 0.8811 | 0.8784 |
 
 pretrained + SPD train 10% — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:-0.005  d2:-0.008  d3:+0.013  d4:+0.012  d5:-0.007  d6:+0.005  d7:-0.002  d8:+0.000  d9:+0.010
-  per-head spread (std over heads) at d1 0.055, d9 0.044; max |bias| 0.146
+  per-head spread (std over heads) at d1 0.055, d9 0.044; max |bias| 1.20, mean |bias| 0.07
+  heads preferring near (d1-3 > d9): 45% of head×seed; consistent near 2, consistent far 5, mixed 25 of 32; mean |near − far| 0.13
 
 pretrained + SPD train 25% — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:-0.002  d2:-0.016  d3:-0.005  d4:+0.041  d5:-0.025  d6:-0.038  d7:+0.030  d8:-0.074  d9:+0.018
-  per-head spread (std over heads) at d1 0.180, d9 0.199; max |bias| 0.545
+  per-head spread (std over heads) at d1 0.180, d9 0.199; max |bias| 4.43, mean |bias| 0.40
+  heads preferring near (d1-3 > d9): 47% of head×seed; consistent near 2, consistent far 4, mixed 26 of 32; mean |near − far| 0.62
 
 pretrained + SPD train 50% — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:+0.039  d2:+0.033  d3:+0.025  d4:+0.115  d5:+0.003  d6:+0.031  d7:-0.006  d8:-0.042  d9:-0.019
-  per-head spread (std over heads) at d1 0.338, d9 0.258; max |bias| 0.876
+  per-head spread (std over heads) at d1 0.338, d9 0.258; max |bias| 5.46, mean |bias| 0.58
+  heads preferring near (d1-3 > d9): 49% of head×seed; consistent near 1, consistent far 3, mixed 28 of 32; mean |near − far| 0.78
 
 pretrained + SPD — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:-1.843  d2:-1.893  d3:-1.244  d4:-0.710  d5:-0.715  d6:-0.432  d7:+0.053  d8:+0.209  d9:+2.422
-  per-head spread (std over heads) at d1 2.746, d9 1.801; max |bias| 7.876
+  per-head spread (std over heads) at d1 2.746, d9 1.801; max |bias| 42.85, mean |bias| 4.63
+  heads preferring near (d1-3 > d9): 23% of head×seed; consistent near 0, consistent far 17, mixed 15 of 32; mean |near − far| 7.46
 
 pretrained + SPD shuffled-A — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:+0.061  d2:+0.074  d3:-0.041  d4:-0.022  d5:+0.041  d6:+0.073  d7:+0.059  d8:+0.001  d9:-0.092
-  per-head spread (std over heads) at d1 0.421, d9 0.086; max |bias| 1.845
+  per-head spread (std over heads) at d1 0.421, d9 0.086; max |bias| 6.71, mean |bias| 0.32
+  heads preferring near (d1-3 > d9): 60% of head×seed; consistent near 6, consistent far 2, mixed 24 of 32; mean |near − far| 0.42
 
 random + SPD train 10% — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:+0.001  d2:+0.001  d3:-0.000  d4:-0.000  d5:-0.000  d6:+0.000  d7:+0.000  d8:+0.000  d9:-0.001
-  per-head spread (std over heads) at d1 0.002, d9 0.002; max |bias| 0.008
+  per-head spread (std over heads) at d1 0.002, d9 0.002; max |bias| 0.07, mean |bias| 0.00
+  heads preferring near (d1-3 > d9): 51% of head×seed; consistent near 3, consistent far 1, mixed 28 of 32; mean |near − far| 0.01
 
 random + SPD train 25% — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:+0.002  d2:+0.002  d3:+0.001  d4:+0.002  d5:+0.001  d6:+0.002  d7:+0.002  d8:+0.002  d9:-0.002
-  per-head spread (std over heads) at d1 0.002, d9 0.002; max |bias| 0.007
+  per-head spread (std over heads) at d1 0.002, d9 0.002; max |bias| 0.03, mean |bias| 0.00
+  heads preferring near (d1-3 > d9): 61% of head×seed; consistent near 4, consistent far 0, mixed 28 of 32; mean |near − far| 0.01
 
 random + SPD train 50% — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:+0.000  d2:+0.001  d3:+0.001  d4:+0.001  d5:+0.001  d6:+0.001  d7:+0.002  d8:+0.002  d9:-0.001
-  per-head spread (std over heads) at d1 0.001, d9 0.001; max |bias| 0.004
+  per-head spread (std over heads) at d1 0.001, d9 0.001; max |bias| 0.02, mean |bias| 0.00
+  heads preferring near (d1-3 > d9): 65% of head×seed; consistent near 8, consistent far 0, mixed 24 of 32; mean |near − far| 0.00
 
 random + SPD — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
-  d0:+0.000  d1:-0.000  d2:+0.044  d3:+0.058  d4:+0.054  d5:+0.045  d6:+0.021  d7:-0.009  d8:-0.028  d9:-0.031
-  per-head spread (std over heads) at d1 0.024, d9 0.013; max |bias| 0.098
+  d0:+0.000  d1:-5.413  d2:+1.147  d3:-2.871  d4:-3.695  d5:-3.339  d6:-1.717  d7:+0.206  d8:+0.442  d9:-0.858
+  per-head spread (std over heads) at d1 3.161, d9 3.302; max |bias| 68.10, mean |bias| 9.22
+  heads preferring near (d1-3 > d9): 35% of head×seed; consistent near 0, consistent far 4, mixed 28 of 32; mean |near − far| 17.87
 
 scratch d256 L1 + SPD — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:+2.469  d2:+0.268  d3:-1.836  d4:-3.137  d5:-2.873  d6:-2.703  d7:-2.196  d8:-2.299  d9:-0.583
-  per-head spread (std over heads) at d1 1.822, d9 0.884; max |bias| 5.881
+  per-head spread (std over heads) at d1 1.822, d9 0.884; max |bias| 42.09, mean |bias| 5.32
+  heads preferring near (d1-3 > d9): 42% of head×seed; consistent near 0, consistent far 0, mixed 8 of 8; mean |near − far| 10.60
 
 scratch d256 L4 + SPD — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):
   d0:+0.000  d1:+0.099  d2:-2.815  d3:-3.806  d4:-4.399  d5:-2.115  d6:+0.525  d7:+1.240  d8:+1.173  d9:-3.338
-  per-head spread (std over heads) at d1 2.549, d9 1.346; max |bias| 5.785
+  per-head spread (std over heads) at d1 2.549, d9 1.346; max |bias| 32.69, mean |bias| 5.54
+  heads preferring near (d1-3 > d9): 39% of head×seed; consistent near 0, consistent far 0, mixed 8 of 8; mean |near − far| 9.19
+walkthrough exit 0

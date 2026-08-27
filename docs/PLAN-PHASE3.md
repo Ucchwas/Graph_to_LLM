@@ -94,7 +94,7 @@ Main stage, 370 runs, all 10 seeds, `python -m g2l.run_phase3 --stage main --lis
 Bias LR grid spans 1.5 decades around GTLM's 5e-3 … 4e-2. 200 frozen-body runs at
 ≈ 0.33 s/epoch (probe; the bias as a one-hot matmul, not a gather) ≈ 20 GPU-hours with the
 scratch runs. Submitted as `sbatch --array=0-7 --gpus=2 --cpus-per-task=16 --mem=128G
-slurm/phase3_node.sbatch main 24 2` (job 449403) — 8 tasks × 2 GPUs, 24 runs per GPU, 16 GPUs
+slurm/phase3_node.sbatch main 24 2` (job 449403; cancelled while pending and resubmitted as **449496**, 9 tasks, which ran the 370 rows) — 8 tasks × 2 GPUs, 24 runs per GPU, 16 GPUs
 in parallel; the 2-GPU allocation schedules on partially-free nodes, where the 4-GPU form
 (449391) waited for a whole node. 8 h limit covers 24 frozen runs at the 2000-epoch cap;
 fallback `sbatch --array=0-15 slurm/phase3_grid.sbatch main 24` (1 GPU per task).
