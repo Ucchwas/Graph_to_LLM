@@ -5,6 +5,7 @@ tmp -> rename, checkpoints + fp16 logits for the frozen arms).
   python -m g2l.run_phase3 --stage main --list
   python -m g2l.run_phase3 --stage main --index 3 --chunk 15
   python -m g2l.run_phase3 --probe
+  python -m g2l.run_phase3 --config configs/phase3b.yaml --stage lora --list   (Phase 3B)
 """
 import argparse
 import hashlib
@@ -29,7 +30,7 @@ HASHED = ("mask_frac", "max_dist", "lr_norm", "weight_decay", "warmup", "max_epo
 
 
 def expand(cfg: dict, stage: str) -> list[dict]:
-    base = {"decoder": "d1", "input": "real", "frac": 1.0, "layers": 0, "width": cfg["d_model"], "bias": True}
+    base = {"decoder": "d1", "input": "real", "frac": 1.0, "layers": 0, "width": cfg["d_model"], "bias": True, "lora": False}
     runs = []
 
     def add(seeds=None, **kw):
@@ -39,7 +40,7 @@ def expand(cfg: dict, stage: str) -> list[dict]:
     def scratch(layers, **kw):
         return {"arm": "scratch", "width": cfg["scratch_width"], "lr": cfg["enc_lr"]["scratch"], "layers": layers, **kw}
 
-    nb, central = cfg["enc_lr_neighbourhood"], cfg["lr_bias_central"]
+    nb, central = cfg.get("enc_lr_neighbourhood", {}), cfg.get("lr_bias_central", [])
     if stage == "main":
         for lb in cfg["lr_bias_grid"]:
             add(arm="pretrained", lr=cfg["enc_lr"]["pretrained"], lr_bias=lb)
@@ -67,6 +68,16 @@ def expand(cfg: dict, stage: str) -> list[dict]:
                 s = cfg["selected"][arm]
                 add(arm=arm, lr=s["lr"], lr_bias=s["lr_bias"], frac=f)
             add(arm="none", lr=cfg["enc_lr"]["none"], bias=False, frac=f)
+    elif stage == "lora":  # Phase 3B: LoRA on the frozen bodies at the Phase-3 selection (docs/PLAN-PHASE3B.md)
+        sel = cfg["selected"]
+        for lr_lora in cfg["lr_lora_grid"]:
+            add(arm="pretrained", **sel["pretrained"], lora=True, lr_lora=lr_lora)
+            add(arm="random", **sel["random"], lora=True, lr_lora=lr_lora)
+            add(arm="pretrained", lr=sel["pretrained"]["lr"], bias=False, lora=True, lr_lora=lr_lora)
+        add(arm="pretrained", **sel["pretrained"], lora=True, lr_lora=cfg["lr_lora_central"], input="shuffled")
+        add(arm="pretrained", **sel["pretrained"])  # references at this commit
+        add(arm="random", **sel["random"])
+        add(arm="none", lr=cfg["enc_lr"]["none"], bias=False)
     elif stage == "extend":
         for e in cfg.get("extend", []):
             kw = {k: v for k, v in e.items() if k != "seeds"}
@@ -81,11 +92,12 @@ def expand(cfg: dict, stage: str) -> list[dict]:
 def key_of(run: dict) -> str:
     arm = run["arm"] + (f"{run['width']}L{run['layers']}" if run["arm"] == "scratch" else "")
     lb = f"_lb{run['lr_bias']:.0e}" if run["bias"] else ""
-    return f"{arm}_{'spd' if run['bias'] else 'nobias'}_{run['input']}_f{run['frac']}_lr{run['lr']:.0e}{lb}_s{run['seed']}"
+    lora = f"_lora{run['lr_lora']:.0e}" if run.get("lora") else ""
+    return f"{arm}_{'spd' if run['bias'] else 'nobias'}_{run['input']}_f{run['frac']}_lr{run['lr']:.0e}{lb}{lora}_s{run['seed']}"
 
 
-def load_cfg() -> dict:
-    return yaml.safe_load(CONFIG.read_text())
+def load_cfg(path=CONFIG) -> dict:
+    return yaml.safe_load(pathlib.Path(path).read_text())
 
 
 def run_one(cfg: dict, run: dict, device: str, force: bool = False):
@@ -102,7 +114,8 @@ def run_one(cfg: dict, run: dict, device: str, force: bool = False):
     T = body.T if body is not None else cfg["T"]
     model = build_model(run["arm"], data.num_nodes, run["width"], T, body=body, decoder=run["decoder"],
                         scratch_layers=run["layers"], seed=run["seed"], bias=run["bias"], max_dist=cfg["max_dist"])
-    tcfg = {**cfg, "lr": run["lr"], "lr_bias": run.get("lr_bias") if run["bias"] else None}
+    tcfg = {**cfg, "lr": run["lr"], "lr_bias": run.get("lr_bias") if run["bias"] else None,
+            "lr_lora": run.get("lr_lora") if run.get("lora") else None}
     row, state, logits = train_run(model, data, split, tcfg, device, run["seed"],
                                    shuffle_input=run["input"] == "shuffled", train_frac=run["frac"])
     row.update(run, key=key, T=T, commit=commit,
@@ -129,13 +142,14 @@ def probe(cfg: dict, device: str):
     A = observed_dense(split[0], N)
     top = A.sum(1).argsort(descending=True)[:512].sort().values
     A_sub = A[top][:, top].to(device)
-    body = make_body(cfg, {"arm": "pretrained", "seed": 0}, device)
-    out = {"commit": commit_hash(), "T": body.T}
+    body = make_body(cfg, {"arm": "pretrained", "seed": 0, "lora": "lora" in cfg}, device)
+    out = {"commit": commit_hash(), "T": body.T,
+           "n_lora": sum(p.numel() for n, p in body.named_parameters() if "lora_" in n)}
     model = build_model("pretrained", 512, cfg["d_model"], body.T, body=body, seed=0, bias=True, max_dist=cfg["max_dist"]).to(device)
     body.canary()
     pw = torch.tensor(float((512 * 511 / 2 - torch.triu(A_sub, 1).sum()) / torch.triu(A_sub, 1).sum()), device=device)
     from g2l.train import make_optimizer
-    opt = make_optimizer(model, cfg["enc_lr"]["pretrained"], cfg["lr_norm"], cfg["weight_decay"], lr_bias=3e-2)
+    opt = make_optimizer(model, cfg["enc_lr"]["pretrained"], cfg["lr_norm"], cfg["weight_decay"], lr_bias=3e-2, lr_lora=cfg.get("lr_lora_central"))
     losses, tables = [], []
     for step in range(300):
         model.train()
@@ -146,6 +160,9 @@ def probe(cfg: dict, device: str):
         loss.backward()
         if step == 0:
             assert model.bias.bias_table.grad is not None and model.bias.bias_table.grad.abs().sum() > 0
+            if "lora" in cfg:
+                lora = [p for n, p in model.named_parameters() if "lora_" in n]
+                assert lora and all(p.grad is not None for p in lora) and sum(p.grad.abs().sum() for p in lora) > 0
         if step % 50 == 0 or step == 299:
             losses.append(round(loss.item(), 4))
             tables.append([round(v, 3) for v in model.bias.bias_table[0].tolist()])
@@ -157,7 +174,7 @@ def probe(cfg: dict, device: str):
     pos = A_full.nonzero().T
     model = build_model("pretrained", N, cfg["d_model"], body.T, body=body, seed=0, bias=True, max_dist=cfg["max_dist"]).to(device)
     out["init"] = first_batch_stats(model, A_full, pos)
-    opt = make_optimizer(model, cfg["enc_lr"]["pretrained"], cfg["lr_norm"], cfg["weight_decay"], lr_bias=3e-2)
+    opt = make_optimizer(model, cfg["enc_lr"]["pretrained"], cfg["lr_norm"], cfg["weight_decay"], lr_bias=3e-2, lr_lora=cfg.get("lr_lora_central"))
     torch.cuda.reset_peak_memory_stats()
     torch.cuda.synchronize()
     t0 = time.time()
@@ -181,6 +198,7 @@ def probe(cfg: dict, device: str):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--config", default=str(CONFIG))
     ap.add_argument("--stage")
     ap.add_argument("--index", type=int, default=None)
     ap.add_argument("--chunk", type=int, default=1)
@@ -188,7 +206,7 @@ def main():
     ap.add_argument("--probe", action="store_true")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
-    cfg = load_cfg()
+    cfg = load_cfg(args.config)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if args.probe:
         probe(cfg, device)

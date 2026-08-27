@@ -62,6 +62,23 @@ class FrozenBody(nn.Module):
             p.requires_grad_(True)
         self.llm = llm
 
+    def add_lora(self, r: int = 16, alpha: int = 32, dropout: float = 0.05,
+                 targets=("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")):
+        """LoRA (Phase 3B) injected in place; adapters kept in fp32 like the RMSNorm gains.
+        B is zero-init, so the body's function is unchanged until the first step. peft marks
+        only adapters trainable, so the RMSNorm gains are re-enabled afterwards."""
+        from peft import LoraConfig, inject_adapter_in_model
+
+        inject_adapter_in_model(LoraConfig(r=r, lora_alpha=alpha, lora_dropout=dropout, bias="none",
+                                           target_modules=list(targets)), self.llm)
+        for name, p in self.llm.named_parameters():
+            if "lora_" in name:
+                p.data = p.data.float()
+                p.requires_grad_(True)
+        for name in rmsnorm_names(self.llm):
+            self.llm.get_parameter(name).requires_grad_(True)
+        return self
+
     def checkpointing(self, on: bool):
         if on:
             self.llm.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})

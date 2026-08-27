@@ -140,9 +140,10 @@ def phase2(key: str | None = None):
     aggregate()
 
 
-def phase3(key: str | None = None):
+def phase3(key: str | None = None, phase: str = "3"):
     """Bias gate assertions live, then pretrained + SPD seed 0 rebuilt on the laptop from its
-    Marlowe checkpoint: logits vs the saved ones, and the learned per-head distance table."""
+    Marlowe checkpoint: logits vs the saved ones, and the learned per-head distance table.
+    Phase 3B: the same with the LoRA adapters (`selected_lora`) on the body."""
     import json
     import os
     import pathlib
@@ -152,10 +153,11 @@ def phase3(key: str | None = None):
     import yaml
 
     print("=" * 60)
-    print("PHASE 3 WALKTHROUGH -- attention bias: inertness, gradient, leak, reload, learned table")
+    print(f"PHASE {phase.upper()} WALKTHROUGH -- attention bias{' + LoRA' if phase == '3b' else ''}: inertness, gradient, leak, reload, learned table")
     print("=" * 60)
     print("\n-- gate assertions, live --")
-    assert pytest.main(["-q", "tests/test_bias.py", "tests/test_llm.py", "tests/test_llm_real.py"]) == 0
+    tests = ["tests/test_bias.py", "tests/test_llm.py", "tests/test_llm_real.py"] + (["tests/test_lora.py"] if phase == "3b" else [])
+    assert pytest.main(["-q", *tests]) == 0
 
     from baselines.common import get_split, observed_dense
     from g2l.aggregate3 import main as aggregate
@@ -163,16 +165,19 @@ def phase3(key: str | None = None):
     from g2l.metrics import evaluate_edge_split
     from g2l.model import build_model
 
-    cfg = yaml.safe_load(open("configs/phase3.yaml"))
+    cfg = yaml.safe_load(open(f"configs/phase{phase}.yaml"))
     sel = cfg["selected"]["pretrained"]
-    key = key or f"pretrained_spd_real_f1.0_lr{sel['lr']:.0e}_lb{sel['lr_bias']:.0e}_s0"
-    runs = pathlib.Path(os.environ.get("G2L_RUNS", os.path.join(os.environ.get("LOCALAPPDATA", "results/runs"), "g2l", "phase3")))
-    stored = json.load(open(f"results/phase3/rows/{key}.json"))
+    lora = f"_lora{cfg['selected_lora']['pretrained']:.0e}" if phase == "3b" else ""
+    key = key or f"pretrained_spd_real_f1.0_lr{sel['lr']:.0e}_lb{sel['lr_bias']:.0e}{lora}_s0"
+    runs = pathlib.Path(os.environ.get("G2L_RUNS", os.path.join(os.environ.get("LOCALAPPDATA", "results/runs"), "g2l", f"phase{phase}")))
+    stored = json.load(open(f"results/phase{phase}/rows/{key}.json"))
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"\n-- {key}: rebuild on the laptop from {runs / key}.pt --")
     data, split = get_split(stored["seed"])
     body = FrozenBody(build_body(load_config(cfg["model_id"], cfg["revision"]), pretrained=True,
                                  model_id=cfg["model_id"], revision=cfg["revision"]))
+    if stored.get("lora"):
+        body.add_lora(**cfg["lora"])
     model = build_model("pretrained", data.num_nodes, cfg["d_model"], body.T, body=body, seed=stored["seed"],
                         bias=True, max_dist=cfg["max_dist"]).to(device)
     res = model.load_state_dict(torch.load(runs / f"{key}.pt", map_location=device), strict=False)
@@ -192,13 +197,14 @@ def phase3(key: str | None = None):
     print("  " + "  ".join(f"d{k}:{v:+.3f}" for k, v in enumerate(t.mean(0))))
     print(f"  head spread at d1 {t[:, 1].std():.3f}, d9 {t[:, 9].std():.3f}; max |bias| {np.abs(t).max():.3f}")
 
-    print("\n-- table and paired deltas (results/phase3/rows vs Phase-2 references) --\n")
-    aggregate()
+    print(f"\n-- table and paired deltas (results/phase{phase}/rows; previous phase as reproduction check) --\n")
+    aggregate(phase)
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--phase", type=int, required=True)
+    ap.add_argument("--phase", required=True, choices=["0", "1", "2", "3", "3b"])
     ap.add_argument("--key", default=None)
     args = ap.parse_args()
-    {0: phase0, 1: phase1, 2: lambda: phase2(args.key), 3: lambda: phase3(args.key)}[args.phase]()
+    {"0": phase0, "1": phase1, "2": lambda: phase2(args.key), "3": lambda: phase3(args.key),
+     "3b": lambda: phase3(args.key, "3b")}[args.phase]()

@@ -88,8 +88,10 @@ def make_body(cfg, run, device):
     assert (llm.config.hidden_size, llm.config.num_hidden_layers, llm.config.num_attention_heads,
             llm.config.num_key_value_heads) == (2048, 16, 32, 8), "not the Llama-3.2-1B geometry"
     body = FrozenBody(llm).to(device)
+    if run.get("lora"):
+        body.add_lora(**cfg["lora"])
     assert all(p.dtype == torch.bfloat16 for n, p in llm.named_parameters()
-               if not (n.endswith("layernorm.weight") or n == "norm.weight")), "body is not bf16"
+               if not (n.endswith("layernorm.weight") or n == "norm.weight" or "lora_" in n)), "body is not bf16"
     return body
 
 

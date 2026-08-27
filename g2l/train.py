@@ -25,12 +25,13 @@ def masked_loss(logits, target, pos_weight):
     return F.binary_cross_entropy_with_logits(logits, target, pos_weight=pos_weight)
 
 
-def make_optimizer(model, lr, lr_norm, weight_decay, lr_bias=None):
+def make_optimizer(model, lr, lr_norm, weight_decay, lr_bias=None, lr_lora=None):
     """Differential LRs: encoder/decoder and the scratch body at `lr`; RMSNorm gains at
-    `lr_norm`; the zero-init bias table at `lr_bias` (no weight decay -- it starts at 0)."""
+    `lr_norm`; the zero-init bias table at `lr_bias` and the zero-init LoRA adapters at
+    `lr_lora` (no weight decay -- both start at 0)."""
     g = param_groups(model)
-    assert not g["lora"], "LoRA is Phase 3B"
     assert bool(g["bias_table"]) == (lr_bias is not None), "bias table present iff lr_bias is set"
+    assert bool(g["lora"]) == (lr_lora is not None), "LoRA adapters present iff lr_lora is set"
     groups = [{"params": g["main"], "lr": lr, "weight_decay": weight_decay}]
     if g["rmsnorm"]:
         groups.append({"params": g["rmsnorm"], "lr": lr_norm, "weight_decay": 0.0})
@@ -38,6 +39,8 @@ def make_optimizer(model, lr, lr_norm, weight_decay, lr_bias=None):
         groups.append({"params": g["scratch"], "lr": lr, "weight_decay": weight_decay})
     if g["bias_table"]:
         groups.append({"params": g["bias_table"], "lr": lr_bias, "weight_decay": 0.0})
+    if g["lora"]:
+        groups.append({"params": g["lora"], "lr": lr_lora, "weight_decay": 0.0})
     return torch.optim.AdamW(groups)
 
 
@@ -84,7 +87,7 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
         model.body.checkpointing(True)
     if hasattr(model.body, "canary"):
         model.body.canary()
-    opt = make_optimizer(model, cfg["lr"], cfg["lr_norm"], cfg["weight_decay"], cfg.get("lr_bias"))
+    opt = make_optimizer(model, cfg["lr"], cfg["lr_norm"], cfg["weight_decay"], cfg.get("lr_bias"), cfg.get("lr_lora"))
     table = model.bias.bias_table if model.bias is not None else None
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / cfg["warmup"]))
     trainable = {n: p for n, p in model.named_parameters() if p.requires_grad}

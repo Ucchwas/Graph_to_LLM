@@ -1,9 +1,11 @@
-"""Phase-3 aggregation: rows -> per-arm (encoder LR, bias LR) selection -> table -> paired deltas.
-Every reference (bias-off arm) is a Phase-3 row at the same commit; the Phase-2 rows are a
-same-seed reproduction check, not a reference.
+"""Phase-3 / 3B aggregation: rows -> per-arm cell selection (encoder LR, bias LR, LoRA LR) ->
+table -> paired deltas. Every reference (bias-off / LoRA-off arm) is a row of the same phase at
+the same commit; the previous phase's rows are a same-seed reproduction check, not a reference.
 
-  python -m g2l.aggregate3
+  python -m g2l.aggregate3                       (Phase 3: results/phase3/rows vs results/phase2/rows)
+  python -m g2l.aggregate3 --phase 3b            (Phase 3B: results/phase3b/rows vs results/phase3/rows)
 """
+import argparse
 import glob
 import json
 import pathlib
@@ -15,10 +17,21 @@ import yaml
 
 from g2l.aggregate import COLS, fmt, paired_delta
 
-ROWS = pathlib.Path("results/phase3/rows")
-P2 = pathlib.Path("results/phase2/rows")
+PHASES = {"3": ("results/phase3/rows", "results/phase2/rows", "configs/phase3.yaml"),
+          "3b": ("results/phase3b/rows", "results/phase3/rows", "configs/phase3b.yaml")}
 CONTROLS = ("shuffled-A",)  # never selected or extended: the edge rule does not apply
 INIT_KEYS = ("z_norm", "logit_diag", "logit_offdiag_std", "logit_train_edge", "layer_rms")
+PAIRS = [("pretrained + SPD", "pretrained"), ("random + SPD", "random"), ("pretrained + SPD", "none"),
+         ("pretrained + SPD", "random + SPD"), ("pretrained + SPD", "scratch d256 L4 + SPD"),
+         ("pretrained + SPD", "scratch d256 L1 + SPD"), ("scratch d256 L4 + SPD", "scratch d256 L4"),
+         ("scratch d256 L1 + SPD", "scratch d256 L1"), ("random + SPD", "none"),
+         ("pretrained", "none"), ("pretrained", "random"),
+         ("pretrained + SPD", "pretrained + SPD shuffled-A"),
+         # Phase 3B
+         ("pretrained + SPD + LoRA", "pretrained + SPD"), ("pretrained + SPD + LoRA", "none"),
+         ("pretrained + SPD + LoRA", "random + SPD + LoRA"), ("random + SPD + LoRA", "random + SPD"),
+         ("pretrained + LoRA", "pretrained + SPD + LoRA"), ("pretrained + LoRA", "none"),
+         ("random + SPD + LoRA", "none"), ("pretrained + SPD + LoRA", "pretrained + SPD + LoRA shuffled-A")]
 
 
 def load(path: pathlib.Path) -> list[dict]:
@@ -30,115 +43,113 @@ def load(path: pathlib.Path) -> list[dict]:
 
 
 def label(r: dict) -> str:
-    arm = r["arm"] + (f" d{r['width']} L{r['layers']}" if r["arm"] == "scratch" else "")
-    tags = [t for t in ("+ SPD" if r["bias"] else "", "shuffled-A" if r["input"] == "shuffled" else "",
-                        f"train {r['frac']:.0%}" if r["frac"] < 1 else "") if t]
+    """Arm name + tags. Phase-2 rows (no bias / frac / layers keys) label as their bias-off arm."""
+    arm = r["arm"] + (f" d{r['width']} L{r.get('layers', 4)}" if r["arm"] == "scratch" else "")
+    tags = [t for t in ("+ SPD" if r.get("bias") else "", "+ LoRA" if r.get("lora") else "",
+                        "shuffled-A" if r.get("input", "real") == "shuffled" else "",
+                        f"train {r['frac']:.0%}" if r.get("frac", 1.0) < 1 else "") if t]
     return arm + (" " + " ".join(tags) if tags else "")
 
 
-def phase2_refs(p2: list[dict], cfg2: dict) -> dict[str, list[dict]]:
-    """Phase-2 bias-off rows at their selected LR, keyed by the Phase-3 label they reproduce."""
-    sel = cfg2["selected_lr"]
-    out = {}
-    for arm in ("pretrained", "random", "none"):
-        out[arm] = [r for r in p2 if r["arm"] == arm and r["decoder"] == "d1" and r["input"] == "real"
-                    and r["loss"] == "masked" and r["encoder"] == "e1" and abs(r["lr"] - sel[arm]) < 1e-12]
-    out["scratch d256 L4"] = [r for r in p2 if r["arm"] == "scratch" and r["width"] == 256 and abs(r["lr"] - 1e-3) < 1e-12]
-    return out
+def cell(r: dict) -> tuple:
+    return (r["lr"], r.get("lr_bias") if r.get("bias") else None, r.get("lr_lora") if r.get("lora") else None)
+
+
+def cell_name(k) -> str:
+    return "/".join(f"{v:.0e}" for v in k if v is not None)
+
+
+def comparable(r: dict) -> bool:
+    """Rows on the shared recipe (E1, D1, masked loss); Phase-2 rows carry the extra keys."""
+    return r.get("decoder", "d1") == "d1" and r.get("loss", "masked") == "masked" and r.get("encoder", "e1") == "e1"
 
 
 def select(rows: list[dict], cfg: dict) -> dict[str, dict]:
-    """Per label, the (encoder LR, bias LR) cell with the best mean val AUROC over the base seeds
-    (`cfg['seeds']`; extension seeds never take part in selection, they only enter the deltas);
-    `edge` if the best sits on the boundary of either grid (controls exempt); `short` lists cells
-    with fewer base-seed rows than seeds."""
+    """Per label, the cell with the best mean val AUROC over the base seeds (`cfg['seeds']`;
+    extension seeds never take part in selection, they only enter the deltas); `edge` if the best
+    sits on the boundary of any axis with more than one point (controls exempt); `short` lists
+    cells with fewer base-seed rows than seeds."""
     base = set(cfg["seeds"])
     by = defaultdict(lambda: defaultdict(list))
     for r in rows:
-        by[label(r)][(r["lr"], r.get("lr_bias") if r["bias"] else None)].append(r)
+        by[label(r)][cell(r)].append(r)
     out = {}
     for lab, cells in by.items():
         n_base = {k: sum(r["seed"] in base for r in rs) for k, rs in cells.items()}
         curve = {k: float(np.mean([r["val_auc"] for r in rs if r["seed"] in base])) for k, rs in cells.items() if n_base[k]}
         best = max(curve, key=curve.get)
-        lrs = sorted({k[0] for k in curve})
-        lbs = sorted({k[1] for k in curve if k[1] is not None})
         control = any(c in lab for c in CONTROLS)
-        edge = not control and ((len(lrs) > 1 and best[0] in (lrs[0], lrs[-1])) or (len(lbs) > 1 and best[1] in (lbs[0], lbs[-1])))
+        edge = False
+        for axis in range(3):
+            pts = sorted({k[axis] for k in curve if k[axis] is not None})
+            edge |= len(pts) > 1 and best[axis] in (pts[0], pts[-1])
         short = {k: n for k, n in n_base.items() if n < len(base)}
-        out[lab] = {"key": best, "rows": cells[best], "curve": curve, "edge": edge, "short": short}
+        out[lab] = {"key": best, "rows": cells[best], "curve": curve, "edge": edge and not control, "short": short}
     return out
 
 
-def cell_name(k) -> str:
-    return f"{k[0]:.0e}" + (f"/{k[1]:.0e}" if k[1] is not None else "")
+def table(selected: dict, prior: list[dict], prior_name: str) -> str:
+    lines = ["| model | enc lr | bias lr | LoRA lr | n | AUROC | AP@1:1 | AUROC(sparse) | AP(sparse) | lift | best epoch | s/epoch |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
 
-
-def table(selected: dict, refs: dict) -> str:
-    lines = ["| model | enc lr | bias lr | n | AUROC | AP@1:1 | AUROC(sparse) | AP(sparse) | lift | best epoch | s/epoch |",
-             "|---|---|---|---|---|---|---|---|---|---|---|"]
-
-    def row(name, lr, lb, rs, mark=""):
+    def row(name, k, rs, mark=""):
         v = {c: [r[c] for r in rs] for c in COLS}
-        lines.append(f"| {name} | {lr:.0e}{mark} | {lb} | {len(rs)} | {fmt(v['auc'])} | {fmt(v['ap'])} | {fmt(v['auroc_sparse'])} "
+        cells_ = [f"{k[0]:.0e}{mark}"] + [f"{x:.0e}" if x is not None else "–" for x in k[1:]]
+        lines.append(f"| {name} | " + " | ".join(cells_) + f" | {len(rs)} | {fmt(v['auc'])} | {fmt(v['ap'])} | {fmt(v['auroc_sparse'])} "
                      f"| {fmt(v['ap_sparse'], 4)} | {np.mean(v['lift']):.0f} | {np.mean([r['best_epoch'] for r in rs]):.0f} "
                      f"| {np.mean([r['sec_per_epoch'] for r in rs]):.2f} |")
 
-    for name, rs in refs.items():
+    for lab, s in selected.items():  # the previous phase's rows at this phase's selected cell, if any
+        rs = [r for r in prior if label(r) == lab and cell(r) == s["key"]]
         if rs:
-            row(f"{name} (Phase 2)", rs[0]["lr"], "–", rs)
+            row(f"{lab} ({prior_name})", s["key"], rs)
     for lab, s in selected.items():
-        lr, lb = s["key"]
-        row(lab, lr, f"{lb:.0e}" if lb is not None else "–", s["rows"], " EDGE" if s["edge"] else "")
+        row(lab, s["key"], s["rows"], " EDGE" if s["edge"] else "")
     return "\n".join(lines)
 
 
-def reproduction(selected: dict, refs: dict) -> str:
-    """Same recipe, same seeds, two commits: the Phase-3 bias-off rows against the Phase-2 rows."""
-    lines = ["| arm | seeds | Phase-2 AUROC | Phase-3 AUROC | mean abs Δ | max abs Δ |", "|---|---|---|---|---|---|"]
-    for name, p2 in refs.items():
-        if name in selected and p2:
-            a = {r["seed"]: r["auc"] for r in p2}
-            b = {r["seed"]: r["auc"] for r in selected[name]["rows"]}
-            seeds = sorted(set(a) & set(b))
-            if seeds:
-                d = [abs(a[s] - b[s]) for s in seeds]
-                lines.append(f"| {name} | {len(seeds)} | {fmt([a[s] for s in seeds])} | {fmt([b[s] for s in seeds])} "
-                             f"| {np.mean(d):.4f} | {np.max(d):.4f} |")
+def reproduction(selected: dict, prior: list[dict]) -> str:
+    """Same recipe, same seeds, two commits: this phase's rows against the previous phase's rows
+    at the same label and cell."""
+    lines = ["| arm | seeds | previous AUROC | this phase AUROC | mean abs Δ | max abs Δ |", "|---|---|---|---|---|---|"]
+    for lab, s in selected.items():
+        a = {r["seed"]: r["auc"] for r in prior if label(r) == lab and cell(r) == s["key"]}
+        b = {r["seed"]: r["auc"] for r in s["rows"]}
+        seeds = sorted(set(a) & set(b))
+        if seeds:
+            d = [abs(a[x] - b[x]) for x in seeds]
+            lines.append(f"| {lab} | {len(seeds)} | {fmt([a[x] for x in seeds])} | {fmt([b[x] for x in seeds])} "
+                         f"| {np.mean(d):.4f} | {np.max(d):.4f} |")
     return "\n".join(lines)
 
 
 def inertness(rows: list[dict]) -> str:
-    """Zero-init check on the real bodies: before any step a biased model equals its bias-off
-    counterpart, so a biased row's first-batch stats must match the bias-off row at the same
-    arm / width / layers / input / fraction / seed (the learning rates play no role at init)."""
+    """Zero-init check on the real bodies: before any step a biased / LoRA model equals its plain
+    counterpart, so a row's first-batch stats must match the plain row at the same arm / width /
+    layers / input / fraction / seed (learning rates play no role at init). Rows from different
+    jobs can differ by ~1 bf16 ulp (kernel reduction order), so the tolerance is 1e-2 relative."""
     def key(r):
         return (r["arm"], r["width"], r["layers"], r["input"], r["frac"], r["seed"])
 
-    off = {key(r): r["init"] for r in rows if not r["bias"]}
+    plain = {key(r): r["init"] for r in rows if not r["bias"] and not r.get("lora")}
     checked, bad = 0, []
     for r in rows:
-        if not r["bias"] or key(r) not in off:
+        if not (r["bias"] or r.get("lora")) or key(r) not in plain:
             continue
         checked += 1
-        a, b = r["init"], off[key(r)]
+        a, b = r["init"], plain[key(r)]
         va = np.concatenate([np.atleast_1d(np.asarray(a[k], dtype=float)) for k in INIT_KEYS if k in a])
         vb = np.concatenate([np.atleast_1d(np.asarray(b[k], dtype=float)) for k in INIT_KEYS if k in b])
         rel = float(np.max(np.abs(va - vb) / (np.abs(vb) + 1e-8))) if va.shape == vb.shape else float("inf")
-        if rel > 1e-3:
+        if rel > 1e-2:
             bad.append((r["key"], rel))
-    line = (f"inertness at init: {checked} biased rows compared with their bias-off counterpart "
-            f"({', '.join(INIT_KEYS)}); {len(bad)} mismatch(es) above 1e-3 relative")
+    line = (f"inertness at init: {checked} biased / LoRA rows compared with their plain counterpart "
+            f"({', '.join(INIT_KEYS)}); {len(bad)} mismatch(es) above 1e-2 relative")
     return line + "".join(f"\n  {k}: {rel:.2e}" for k, rel in bad[:10])
 
 
 def deltas(selected: dict) -> str:
-    pairs = [("pretrained + SPD", "pretrained"), ("random + SPD", "random"), ("pretrained + SPD", "none"),
-             ("pretrained + SPD", "random + SPD"), ("pretrained + SPD", "scratch d256 L4 + SPD"),
-             ("pretrained + SPD", "scratch d256 L1 + SPD"), ("scratch d256 L4 + SPD", "scratch d256 L4"),
-             ("scratch d256 L1 + SPD", "scratch d256 L1"), ("random + SPD", "none"),
-             ("pretrained", "none"), ("pretrained", "random"),
-             ("pretrained + SPD", "pretrained + SPD shuffled-A")]
+    pairs = list(PAIRS)
     for f in sorted({lab.split("train ")[1] for lab in selected if "train " in lab}):  # data-fraction stage
         pairs += [(f"pretrained + SPD train {f}", f"random + SPD train {f}"),
                   (f"pretrained + SPD train {f}", f"none train {f}"), (f"random + SPD train {f}", f"none train {f}")]
@@ -154,25 +165,32 @@ def deltas(selected: dict) -> str:
 def surfaces(selected: dict) -> str:
     out = []
     for lab, s in selected.items():
-        lbs = sorted({k[1] for k in s["curve"] if k[1] is not None}, reverse=True)
-        lrs = sorted({k[0] for k in s["curve"]}, reverse=True)
+        curve, key, short = s["curve"], s["key"], s["short"]
+        lls = sorted({k[2] for k in curve if k[2] is not None}, reverse=True)
+        lbs = sorted({k[1] for k in curve if k[1] is not None}, reverse=True)
+        lrs = sorted({k[0] for k in curve}, reverse=True)
+
+        def val(k):
+            return f"{curve[k]:.4f}" + (" *" if k == key else "") + (f" ({short[k]})" if k in short else "")
+
+        if lls:  # LoRA axis (Phase 3B): encoder / bias LR fixed per arm
+            for lr in lrs:
+                for lb in lbs or [None]:
+                    ks = [(lr, lb, ll) for ll in lls if (lr, lb, ll) in curve]
+                    if ks:
+                        out.append(f"\n{lab} — mean val AUROC by LoRA LR at enc {lr:.0e}" + (f", bias {lb:.0e}" if lb else "")
+                                   + " (* selected): " + ", ".join(f"{k[2]:.0e} {val(k)}" for k in ks))
+            continue
         if not lbs:
             if len(lrs) > 1:
-                out.append(f"\n{lab} — mean val AUROC by encoder LR (* selected): " + ", ".join(
-                    f"{lr:.0e} {s['curve'][(lr, None)]:.4f}" + (" *" if (lr, None) == s["key"] else "") for lr in lrs))
+                out.append(f"\n{lab} — mean val AUROC by encoder LR (* selected): "
+                           + ", ".join(f"{lr:.0e} {val((lr, None, None))}" for lr in lrs))
             continue
         out.append(f"\n{lab} — mean val AUROC (rows: encoder LR; columns: bias LR; * selected; (n) if fewer rows than seeds)\n")
         out.append("| enc lr | " + " | ".join(f"{lb:.0e}" for lb in lbs) + " |")
         out.append("|---|" + "---|" * len(lbs))
         for lr in lrs:
-            cells = []
-            for lb in lbs:
-                k = (lr, lb)
-                if k not in s["curve"]:
-                    cells.append("–")
-                    continue
-                cells.append(f"{s['curve'][k]:.4f}" + (" *" if k == s["key"] else "") + (f" ({s['short'][k]})" if k in s["short"] else ""))
-            out.append(f"| {lr:.0e} | " + " | ".join(cells) + " |")
+            out.append(f"| {lr:.0e} | " + " | ".join(val((lr, lb, None)) if (lr, lb, None) in curve else "–" for lb in lbs) + " |")
     return "\n".join(out)
 
 
@@ -189,24 +207,25 @@ def bias_tables(selected: dict) -> str:
     return "\n".join(out)
 
 
-def main():
+def main(phase: str = "3"):
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    cfg = yaml.safe_load(open("configs/phase3.yaml"))
-    cfg2 = yaml.safe_load(open("configs/phase2.yaml"))
-    rows = load(ROWS)
+    rows_dir, prior_dir, cfg_path = (pathlib.Path(p) for p in PHASES[phase])
+    cfg = yaml.safe_load(open(cfg_path))
+    rows = load(rows_dir)
     if not rows:
         raise SystemExit("no rows")
-    refs = phase2_refs(load(P2), cfg2) if P2.exists() else {}
+    prior = [r for r in load(prior_dir) if comparable(r)] if prior_dir.exists() else []
+    prior_name = f"Phase {'2' if phase == '3' else '3'}"
     selected = select(rows, cfg)
-    p2c = next((rs[0]["commit"][:8] for rs in refs.values() if rs), "–")
-    print(f"{len(rows)} Phase-3 rows @ {rows[0]['commit'][:8]}; Phase-2 rows @ {p2c} (reproduction check only)\n")
+    print(f"{len(rows)} Phase-{phase.upper()} rows @ {rows[0]['commit'][:8]}; {prior_name} rows @ "
+          f"{prior[0]['commit'][:8] if prior else '–'} (reproduction check only)\n")
     short = {lab: {cell_name(k): n for k, n in s["short"].items()} for lab, s in selected.items() if s["short"]}
     if short:
         print(f"INCOMPLETE — cells with fewer rows than the {len(cfg['seeds'])} seeds: {short}\n")
-    print(table(selected, refs), "\n")
-    print("Same-seed reproduction of the Phase-2 bias-off rows at this commit:\n")
-    print(reproduction(selected, refs), "\n")
+    print(table(selected, prior, prior_name), "\n")
+    print(f"Same-seed reproduction of the {prior_name} rows at this commit:\n")
+    print(reproduction(selected, prior), "\n")
     print(inertness(rows), "\n")
     print("Paired per-seed deltas (all rows at this commit):\n")
     print(deltas(selected), "\n")
@@ -216,4 +235,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--phase", default="3", choices=sorted(PHASES))
+    main(ap.parse_args().phase)
