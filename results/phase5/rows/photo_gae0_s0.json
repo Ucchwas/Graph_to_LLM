@@ -1,0 +1,1 @@
+{"auc": 0.9833051815683762, "ap": 0.9830412680172667, "auroc_sparse": 0.9833485200860967, "ap_sparse": 0.0769663288900832, "lift": 188.41013458690003, "base_rate": 0.00040850418720222385, "model": "gae0", "seed": 0, "dataset": "photo", "wallclock_s": 69.7, "key": "photo_gae0_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

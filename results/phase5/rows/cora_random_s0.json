@@ -1,0 +1,1 @@
+{"auc": 0.4797626463206939, "ap": 0.49197980751669423, "auroc_sparse": 0.4881777804564448, "ap_sparse": 0.00017862980773186753, "lift": 1.2407575601656733, "base_rate": 0.0001439683411705473, "model": "random", "seed": 0, "dataset": "cora", "wallclock_s": 1.8, "key": "cora_random_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

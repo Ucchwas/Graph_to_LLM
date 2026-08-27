@@ -1,0 +1,1 @@
+{"auc": 0.982818166236748, "ap": 0.9803949888722792, "auroc_sparse": 0.9832992131719598, "ap_sparse": 0.07001839458935735, "lift": 171.40190182358106, "base_rate": 0.00040850418720222385, "model": "maskgae_x", "seed": 0, "dataset": "photo", "wallclock_s": 37.4, "key": "photo_maskgae_x_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

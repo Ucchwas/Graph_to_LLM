@@ -1,0 +1,1 @@
+{"auc": 0.9684949386551611, "ap": 0.9667324678799132, "auroc_sparse": 0.9737649557424312, "ap_sparse": 0.5719066602088066, "lift": 33.84643002261501, "base_rate": 0.016897104357141313, "hits20": 0.11167212575674057, "model": "maskgae0", "seed": 0, "dataset": "ddi", "wallclock_s": 597.1, "key": "ddi_maskgae0_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

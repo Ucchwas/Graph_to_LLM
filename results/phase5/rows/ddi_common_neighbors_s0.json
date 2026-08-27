@@ -1,0 +1,1 @@
+{"auc": 0.947571607858498, "ap": 0.9447783787548033, "auroc_sparse": 0.9557281369294477, "ap_sparse": 0.4389363182747948, "lift": 25.97701410829512, "base_rate": 0.016897104357141313, "hits20": 0.1772955060005188, "model": "common_neighbors", "seed": 0, "dataset": "ddi", "wallclock_s": 3.0, "key": "ddi_common_neighbors_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

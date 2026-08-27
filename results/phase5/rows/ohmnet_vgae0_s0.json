@@ -1,0 +1,1 @@
+{"auc": 0.8773227417035826, "ap": 0.8781108946471801, "auroc_sparse": 0.8784732304818388, "ap_sparse": 0.012783236741844546, "lift": 18.719822629654903, "base_rate": 0.0006828716807174258, "model": "vgae0", "seed": 0, "dataset": "ohmnet", "wallclock_s": 8.8, "key": "ohmnet_vgae0_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

@@ -1,0 +1,1 @@
+{"auc": 0.8776486635627626, "ap": 0.8738902526282019, "auroc_sparse": 0.8771080942299712, "ap_sparse": 0.04153974571077515, "lift": 60.83096851685728, "base_rate": 0.0006828716807174258, "model": "common_neighbors", "seed": 0, "dataset": "ohmnet", "wallclock_s": 2.1, "key": "ohmnet_common_neighbors_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

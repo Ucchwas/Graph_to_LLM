@@ -1,0 +1,1 @@
+{"auc": 0.9709575597721599, "ap": 0.967577983008532, "auroc_sparse": 0.9709772455071282, "ap_sparse": 0.08362781523959006, "lift": 204.7171555629401, "base_rate": 0.00040850418720222385, "model": "common_neighbors", "seed": 0, "dataset": "photo", "wallclock_s": 6.9, "key": "photo_common_neighbors_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

@@ -1,0 +1,1 @@
+{"auc": 0.5, "ap": 0.5, "auroc_sparse": 0.5, "ap_sparse": 0.0001439683411705473, "lift": 1.0, "base_rate": 0.0001439683411705473, "model": "identity", "seed": 0, "dataset": "cora", "wallclock_s": 0.5, "key": "cora_identity_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

@@ -1,0 +1,1 @@
+{"auc": 0.7262061217949872, "ap": 0.723353152631784, "auroc_sparse": 0.7262906606111508, "ap_sparse": 0.014554674067013083, "lift": 101.09635179981251, "base_rate": 0.0001439683411705473, "model": "common_neighbors", "seed": 0, "dataset": "cora", "wallclock_s": 0.6, "key": "cora_common_neighbors_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

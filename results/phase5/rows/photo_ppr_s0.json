@@ -1,0 +1,1 @@
+{"auc": 0.9867195427512847, "ap": 0.984631285749878, "auroc_sparse": 0.9874063167364783, "ap_sparse": 0.06395758317304505, "lift": 156.56530624833917, "base_rate": 0.00040850418720222385, "model": "ppr", "seed": 0, "dataset": "photo", "wallclock_s": 18.8, "key": "photo_ppr_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

@@ -1,0 +1,1 @@
+{"auc": 0.850822204379089, "ap": 0.8826051851465627, "auroc_sparse": 0.8593424972262833, "ap_sparse": 0.011113470278764154, "lift": 77.19384823361236, "base_rate": 0.0001439683411705473, "model": "vgae0", "seed": 0, "dataset": "cora", "wallclock_s": 8.1, "key": "cora_vgae0_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}

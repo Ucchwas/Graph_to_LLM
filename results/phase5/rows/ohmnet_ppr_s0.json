@@ -1,0 +1,1 @@
+{"auc": 0.918632272389737, "ap": 0.917595920571676, "auroc_sparse": 0.9176697714612043, "ap_sparse": 0.016423250370636945, "lift": 24.05027303721639, "base_rate": 0.0006828716807174258, "model": "ppr", "seed": 0, "dataset": "ohmnet", "wallclock_s": 5.1, "key": "ohmnet_ppr_s0", "commit": "550abee757c473bb3b45be14b69c27d470900d05"}
