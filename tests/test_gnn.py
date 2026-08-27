@@ -31,6 +31,20 @@ def test_gnn_shapes_groups_and_gradients(kind):
     assert m.encoder.proj.weight.grad.abs().sum() > 0
 
 
+@pytest.mark.parametrize("kind", ["gcn", "gat", "sage", "gin"])
+def test_gnn_direct_rows_into_first_conv(kind):
+    A = graph()
+    m = build_model("gnn_direct", N, D, 1.0, seed=0, scratch_layers=2, kind=kind)
+    assert isinstance(m.encoder, torch.nn.Identity) and m.body.first is not None and len(m.body.convs) == 1
+    assert m(A).shape == (N, N)
+    g = param_groups(m)
+    assert g["main"] and g["scratch"] and not list(m.encoder.parameters())
+    m(A).sum().backward()
+    assert sum(p.grad.abs().sum() for p in m.body.first.parameters()) > 0
+    m1 = build_model("gnn_direct", N, D, 1.0, seed=0, scratch_layers=1, kind=kind)
+    assert len(m1.body.convs) == 0 and m1(A).shape == (N, N)
+
+
 def test_gnn_reads_the_input_graph_only():
     A = graph(40, 0.1, 3)
     m = build_model("gnn", 40, D, 1.0, seed=0, scratch_layers=2, kind="gcn").eval()

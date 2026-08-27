@@ -46,11 +46,12 @@ def expand(cfg: dict, stage: str) -> list[dict]:
         for seed in (st.get("seeds", cfg["seeds"]) if seeds is None else seeds):
             runs.append({**base, **kw, "seed": seed})
 
-    for kind in st.get("kinds", []):
-        for w in st["widths"]:
-            for L in st["layers"]:
-                for lr in st["lr"]:
-                    add(arm="gnn", kind=kind, width=w, layers=L, lr=lr, dropout=st.get("dropout", 0.0))
+    for arm in st.get("arms", ["gnn"]):
+        for kind in st.get("kinds", []):
+            for w in st["widths"]:
+                for L in st["layers"]:
+                    for lr in st["lr"]:
+                        add(arm=arm, kind=kind, width=w, layers=L, lr=lr, dropout=st.get("dropout", 0.0))
     for ref in st.get("references", []):
         add(**ref)
     for e in st.get("extend", []):
@@ -60,8 +61,8 @@ def expand(cfg: dict, stage: str) -> list[dict]:
 
 def key_of(run: dict) -> str:
     arm = run["arm"]
-    if arm == "gnn":
-        arm = f"gnn-{run['kind']}{run['width']}L{run['layers']}" + (f"do{run['dropout']}" if run["dropout"] else "")
+    if arm in ("gnn", "gnn_direct"):
+        arm = f"{'gnnD' if arm == 'gnn_direct' else 'gnn'}-{run['kind']}{run['width']}L{run['layers']}" + (f"do{run['dropout']}" if run["dropout"] else "")
     elif arm in ("scratch", "gt"):
         arm += f"{run['width']}L{run['layers']}" + ("frz" if run["frozen"] else "") + (f"do{run['dropout']}" if run["dropout"] else "")
     lb = f"_lb{run['lr_bias']:.0e}" if run["bias"] else ""

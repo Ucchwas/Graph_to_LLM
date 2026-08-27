@@ -91,7 +91,7 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
     table = model.bias.bias_table if model.bias is not None else None
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / cfg["warmup"]))
     trainable = {n: p for n, p in model.named_parameters() if p.requires_grad}
-    enc_params = list(model.encoder.parameters())
+    enc_params = list(model.encoder.parameters()) or list(model.body.first.parameters())  # gnn_direct: the first conv is the row projection
     row = {"init": first_batch_stats(model, A_in, pos), "grad_norm_enc": {}}
 
     if device == "cuda":

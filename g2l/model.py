@@ -79,7 +79,7 @@ def build_model(arm: str, n_nodes: int, d_model: int, T: float, body=None, decod
                 gain: float | None = None, scratch_layers: int = 4, d3_hidden: int = 512, seed: int = 0,
                 bias: bool = False, max_dist: int = 8, heads: int | None = None, dropout: float = 0.0,
                 frozen: bool = False, kind: str = "gcn"):
-    """arm in {pretrained, random, none, scratch, gt, gnn}; `body` is the FrozenBody for the
+    """arm in {pretrained, random, none, scratch, gt, gnn, gnn_direct}; `body` is the FrozenBody for the
     frozen Llama arms. torch is re-seeded here so encoder / decoder start bit-identical across
     arms at a seed; the bias table is zero-init, so `bias=True` starts at exactly the
     `bias=False` model. `heads` / `dropout` / `frozen` apply to `gt` (heads defaults to
@@ -92,10 +92,12 @@ def build_model(arm: str, n_nodes: int, d_model: int, T: float, body=None, decod
     elif arm == "gt":
         body = ScratchBody(d_model, layers=scratch_layers, heads=heads or max(1, d_model // 64),
                            dropout=dropout, frozen=frozen, clone_init=False)
-    elif arm == "gnn":
+    elif arm in ("gnn", "gnn_direct"):
         from g2l.gnn import GNNBody
         assert not bias, "the attention bias has no place in a message-passing body"
-        body = GNNBody(d_model, layers=scratch_layers, kind=kind, dropout=dropout)
+        if arm == "gnn_direct":  # the raw rows are the first conv's input: no separate tokenizer
+            enc = nn.Identity()
+        body = GNNBody(d_model, layers=scratch_layers, kind=kind, dropout=dropout, in_dim=n_nodes if arm == "gnn_direct" else None)
     elif arm == "none":
         body = None
     else:
