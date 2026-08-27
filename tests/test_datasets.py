@@ -107,3 +107,23 @@ def test_photo_split():
     mp = set(map(tuple, test.edge_index.t().tolist()))
     held = set(map(tuple, test.pos_edge_label_index.t().tolist()))
     assert not (held & mp) and not ({(j, i) for i, j in held} & mp)
+
+
+def test_ohmnet_combined_graph_and_aligned_layers():
+    if not os.path.exists(os.path.join(root(), "PPT-Ohmnet", "processed", "combined.pt")):
+        pytest.skip("PPT-Ohmnet not downloaded")
+    from g2l.datasets import load_ohmnet_raw
+
+    o = load_ohmnet_raw()
+    N, ei = o["entrez"].numel(), o["edge_index"]
+    assert N == 4494 and ei.shape == (2, 2 * 68527) and len(o["tissues"]) == 144
+    assert (ei[0] != ei[1]).all() and torch.equal(o["entrez"], o["entrez"].sort().values)
+    key = lambda e: set((e[0] * N + e[1]).tolist())
+    combined = key(ei)
+    assert key(o["tissues"]["brain"]) <= combined and key(o["tissues"]["cochlea"]) <= combined
+    assert o["tissues"]["brain"].max() < N
+    data, (train, val, test) = load_graph("ohmnet", seed=0)
+    assert data.num_nodes == N and test.pos_edge_label_index.shape[1] == int(0.10 * 68527)
+    held = set(map(tuple, test.pos_edge_label_index.t().tolist()))
+    mp = set(map(tuple, test.edge_index.t().tolist()))
+    assert not (held & mp) and not ({(j, i) for i, j in held} & mp)

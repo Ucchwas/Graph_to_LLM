@@ -9,10 +9,17 @@ load_graph(name, seed) -> (data, (train, val, test)). Every split object carries
   photo   Amazon Photo (Shchur et al. 2018), same split protocol
   ddi     ogbl-ddi, the official protein-target split; input graph = the train edges at val and
           test time (the OGB convention), the split is fixed and only the 1:1 negatives are seeded
-  ppi     the 24 GraphSAGE tissue graphs: inspection only (variable N, no split defined yet)
+  ohmnet  PPT-Ohmnet (BioSNAP; Zitnik & Leskovec 2017): the combined tissue-nonspecific PPI graph
+          (distinct protein pairs over the 144 tissue layers), RandomLinkSplit 85/5/10; the tissue
+          layers are kept on the same node index (Entrez ids) for the later cross-graph phase
+  ppi     the 24 GraphSAGE tissue graphs: inspection only (variable N, unaligned ids)
 """
 import functools
+import gzip
 import os
+import pathlib
+import urllib.request
+from collections import defaultdict
 
 import torch
 from torch_geometric.data import Data
@@ -84,6 +91,57 @@ def load_ddi(seed: int = 0):
     return Data(edge_index=ei, num_nodes=N), (train, val, test)
 
 
+OHMNET_URL = "https://snap.stanford.edu/biodata/datasets/10013/files/"
+OHMNET_FILES = ("PPT-Ohmnet_tissues-combined.edgelist.gz", "PPT-Ohmnet_tissues-data.txt.gz")
+OHMNET_LAYERS_URL = "http://snap.stanford.edu/ohmnet/bio-tissue-networks.tar.gz"
+
+
+def load_ohmnet_raw() -> dict:
+    """The tissue-labelled edgelist (protein1, protein2, tissue; Entrez ids) -> the combined simple
+    graph (distinct pairs, self-loops dropped, ids -> contiguous index by sorted Entrez id) plus
+    every tissue layer as an edge_index on the same index space. Cached at
+    <root>/PPT-Ohmnet/processed/combined.pt; the original OhmNet layer release is kept in raw/."""
+    d = pathlib.Path(root()) / "PPT-Ohmnet"
+    raw, out = d / "raw", d / "processed" / "combined.pt"
+    if out.exists():
+        return torch.load(out)
+    raw.mkdir(parents=True, exist_ok=True)
+    for f in OHMNET_FILES:
+        if not (raw / f).exists():
+            urllib.request.urlretrieve(OHMNET_URL + f, raw / f)
+    if not (raw / "bio-tissue-networks.tar.gz").exists():
+        urllib.request.urlretrieve(OHMNET_LAYERS_URL, raw / "bio-tissue-networks.tar.gz")
+    by_tissue, self_loops = defaultdict(set), 0
+    with gzip.open(raw / OHMNET_FILES[0], "rt") as fh:
+        for line in fh:
+            if line.startswith("#"):
+                continue
+            a, b, t = line.split()
+            a, b = int(a), int(b)
+            if a == b:
+                self_loops += 1
+                continue
+            by_tissue[t].add((min(a, b), max(a, b)))
+    pairs = set().union(*by_tissue.values())
+    ids = sorted({x for p in pairs for x in p})
+    idx = {g: i for i, g in enumerate(ids)}
+
+    def edge_index(ps):
+        e = torch.tensor([[idx[a], idx[b]] for a, b in sorted(ps)]).T
+        return torch.cat([e, e.flip(0)], 1)
+
+    obj = {"entrez": torch.tensor(ids), "edge_index": edge_index(pairs), "n_self_loop_lines": self_loops,
+           "tissues": {t: edge_index(ps) for t, ps in sorted(by_tissue.items())}}
+    out.parent.mkdir(exist_ok=True)
+    torch.save(obj, out)
+    return obj
+
+
+def load_ohmnet():
+    o = load_ohmnet_raw()
+    return Data(edge_index=o["edge_index"], num_nodes=o["entrez"].numel())
+
+
 def load_graph(name: str, seed: int = 0):
     if name == "cora":
         data = load_cora()
@@ -93,6 +151,9 @@ def load_graph(name: str, seed: int = 0):
         return data, edge_split(data, seed=seed)
     if name == "ddi":
         return load_ddi(seed)
+    if name == "ohmnet":
+        data = load_ohmnet()
+        return data, edge_split(data, seed=seed)
     raise ValueError(name)
 
 

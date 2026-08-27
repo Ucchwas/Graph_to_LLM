@@ -24,7 +24,7 @@ def main():
     args = ap.parse_args()
     rows = [json.load(open(f)) for f in sorted(glob.glob(f"{args.rows}/*.json"))]
     out = ["# Phase 5 -- dataset feasibility: direct GCN vs baselines, one seed", ""]
-    for ds in sorted({r["dataset"] for r in rows}, key=["cora", "ddi", "photo"].index):
+    for ds in sorted({r["dataset"] for r in rows}, key=["cora", "ddi", "photo", "ohmnet"].index):
         sub = sorted([r for r in rows if r["dataset"] == ds], key=lambda r: (ORDER.index(r["model"]), r["seed"]))
         n = next((r.get("n_nodes") for r in sub if r.get("n_nodes")), "?")
         out += [f"## {ds}  (N = {n}; rows @ {', '.join(sorted({r['commit'][:8] for r in sub}))})", "",

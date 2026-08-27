@@ -25,7 +25,7 @@ from g2l.train import train_run
 CONFIG = pathlib.Path("configs/phase5.yaml")
 ROWS = pathlib.Path(os.environ.get("G2L_ROWS", "results/phase5/rows"))
 RUNS = pathlib.Path(os.environ.get("G2L_RUNS", "results/runs/phase5"))
-NO_FEATURES = {"ddi"}
+NO_FEATURES = {"ddi", "ohmnet"}
 
 
 def commit_hash() -> str:

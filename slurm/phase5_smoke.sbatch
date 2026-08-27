@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: sbatch --array=0-2 slurm/phase5_smoke.sbatch     (task i = dataset i of configs/phase5.yaml: cora, ddi, photo)
+# Usage: sbatch --array=0-3 slurm/phase5_smoke.sbatch     (task i = dataset i of configs/phase5.yaml: cora, ddi, photo, ohmnet)
 #   Each task runs its dataset's direct GCN and every baseline sequentially (row per run under $G2L_ROWS).
 #   QOS medium allows 32 submitted jobs per ACCOUNT (shared with teammates): keep arrays small.
 #SBATCH --job-name=g2l-p5
@@ -21,6 +21,6 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-8}
 source "$HOME/envs/g2l/bin/activate"
 cd "$HOME/Graph_to_LLM"
 python -c "import ogb, torch_geometric, g2l.datasets, g2l.run_phase5, baselines.maskgae"
-for d in Cora/processed Photo/processed ogbl_ddi/processed; do test -d "$PYG_DATA_ROOT/$d" || { echo "dataset not staged: $d"; exit 1; }; done
+for d in Cora/processed Photo/processed ogbl_ddi/processed PPT-Ohmnet/processed; do test -d "$PYG_DATA_ROOT/$d" || { echo "dataset not staged: $d"; exit 1; }; done
 echo "job ${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID} task ${SLURM_ARRAY_TASK_ID:-0} on $SLURMD_NODENAME | commit $(git rev-parse --short HEAD)"
 python -u -m g2l.run_phase5 --config configs/phase5.yaml --index "${SLURM_ARRAY_TASK_ID:-0}"

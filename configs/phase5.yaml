@@ -9,9 +9,9 @@ warmup: 100
 max_epochs: 2000
 patience: 200
 seeds: [0]
-datasets: [cora, ddi, photo]          # one array task per dataset; PPI (variable N) is held for approval
+datasets: [cora, ddi, photo, ohmnet]  # one array task per dataset; ohmnet = the PPT-Ohmnet combined graph (tissue layers kept for the cross-graph phase)
 direct: {kind: gcn, width: 1024, layers: 2, lr: 3.0e-3}
 baselines: [identity, random, common_neighbors, ppr, gae0, vgae0, maskgae0, maskgae_x]
 # identity / random: the leak canary and chance; *0 = featureless (X = I: the published GAE* / VGAE*
 # convention, so the first GCN weight is a per-node table); maskgae_x = MaskGAE with the dataset's node
-# features, the implementation check against the published numbers (skipped on ogbl-ddi, which has none)
+# features, the implementation check against the published numbers (skipped on ogbl-ddi and PPT-Ohmnet, which have none)

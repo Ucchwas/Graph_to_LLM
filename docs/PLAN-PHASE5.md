@@ -15,7 +15,19 @@ loss: pos-weighted BCE on the hidden cells; AdamW lr 3e-3, wd 0.01, warmup 100, 
 ```
 
 No node features, no constant inputs, no structural embeddings, no ID-embedding inputs, no
-tokenizer, no LLM. Trained independently per graph, one seed. Note what the first layer is:
+tokenizer, no LLM. Trained independently per graph, one seed.
+
+Hidden width 1024 on every graph (user, 2026-08-27: "choose and justify"). Reasons: (i) it is the
+Phase-4 selection — on Cora the direct route gave 0.939 / 0.934 AUROC at 1024 against 0.933 /
+0.930 at 256 and 0.934 / 0.931 at 2708 (lr 1e-2 / 3e-3, seed 0), and the 3-seed sweep found the
+256-vs-1024 difference within noise, so the choice is by cost and by the next phase, not by
+Cora; (ii) the first layer compresses an N-wide row into the hidden width, and 1024 keeps that
+ratio ≤ 7.5 : 1 on the largest graph here (Photo) where 256 would be 30 : 1 — the wider table
+loses less of the row before message passing; (iii) one width across graphs means the later
+shared-backbone phase (§5, option A) has a single backbone size; (iv) cost is immaterial on an
+H100 at these sizes (the largest per-layer message tensor, DDI, is 8.7 GB at 1024).
+
+Note what the first layer is:
 `x_i = Σ_j A_ij W[j]` — the weight matrix is a per-node table of vectors that node j hands to
 each neighbour, read through the raw row. That is the reason the layer is tied to N (§5).
 
@@ -26,7 +38,8 @@ each neighbour, read through the raw row. That is the reason the layer is tied t
 | Cora (Planetoid) | 2,708 | 5,278 | 0.0014 | 3.9 / 168 | 1,433 (unused) | 29 MB | 11 MB | ~0.1 GB |
 | ogbl-ddi | 4,267 | 1,334,889 (train 1,067,911) | 0.147 (train 0.117) | 500 / 2,234 (train) | none | 73 MB | 17 MB | ~0.3 GB |
 | Amazon Photo | 7,650 | 119,081 | 0.0041 | 31.1 / 1,434; 115 isolated | 745 (unused) | 234 MB | 31 MB | ~1 GB |
-| PPI (GraphSAGE) | 24 graphs, 591–3,480 each (56,944 total) | 3,854–53,377 each (793,632 total) | 0.009–0.022 | max 112–720 | 50 (unused) | 1–48 MB per graph; union 13 GB | per graph N_g × 1024 | per graph |
+| PPT-Ohmnet combined (BioSNAP) | 4,494 (4,510 listed; 16 carry only self-loops) | 68,527 (70,338 listed incl. 1,811 self-loops) | 0.0068 | 30.5 / 785 | none | 81 MB | 18 MB | ~0.3 GB |
+| PPI (GraphSAGE) — replaced by PPT-Ohmnet (user, 2026-08-27) | 24 graphs, 591–3,480 each (56,944 total) | 3,854–53,377 each (793,632 total) | 0.009–0.022 | max 112–720 | 50 (unused) | 1–48 MB per graph; union 13 GB | per graph N_g × 1024 | per graph |
 
 Two memory terms. The dense one is O(N²) per step (rows, logits, mask, their gradients): a
 50 k-node graph would be 10 GB per N² fp32 tensor, so the dense route stops around N ≈ 30 k.
@@ -49,7 +62,14 @@ Splits and metrics:
   graph = the train edges at val and test time (the OGB convention). AUROC / AP@1:1 use seeded
   uniform non-edges as on the other graphs, so the columns stay comparable; Hits@20 is added.
   Selection stays on val AUROC (one rule for every graph); val Hits@20 is recorded at that epoch.
-- **PPI** — no split defined yet (§5).
+- **PPT-Ohmnet** — the tissue-labelled edgelist (protein1, protein2, tissue; Entrez ids;
+  3,666,564 lines over 144 tissues) collapsed to its distinct protein pairs = the combined,
+  tissue-nonspecific PPI graph; RandomLinkSplit 85 / 5 / 10 as on Cora / Photo (train 58,249 /
+  val 3,426 / test 6,852 pairs). The 144 tissue layers are stored on the same node index
+  (`processed/combined.pt`, `tissues`), together with the original OhmNet layer release
+  (`raw/bio-tissue-networks.tar.gz`), for the cross-graph phase: every layer is a subgraph of
+  the combined graph on an aligned node set (`tests/test_datasets.py`).
+- **PPI** — replaced by PPT-Ohmnet; kept downloaded, unaligned ids, no split (§5).
 
 Compatibility with raw-row input: Cora, DDI and Photo are single fixed-N graphs, so the row
 width equals the node count and the model is built per graph with `in_channels = N`. DDI is
@@ -91,12 +111,19 @@ direct route, and the DDI leaderboard GCN (a free embedding table + GCN) is the 
 
 ## 4. Runs (Marlowe, `slurm/phase5_smoke.sbatch`, array 0-2 = cora / ddi / photo)
 
-26 runs: 3 direct-GCN runs + 23 baseline rows, one GPU task per dataset, ≈ 1 GPU-h total
-(Photo's direct run is the longest: ~0.5 s / epoch, ≤ 2,000 epochs). Rows under
+34 runs: 4 direct-GCN runs + 30 baseline rows, one GPU task per dataset (array 0-3), ≈ 1 GPU-h
+total (Photo's direct run is the longest: ~0.5 s / epoch, ≤ 2,000 epochs). Rows under
 `results/phase5/rows`, table by `python -m g2l.aggregate5`. Laptop use: downloads, inspection,
-tests, and a 3-epoch CPU pass of every run (`--epochs 3`) before submission.
+tests, and a 3-epoch CPU pass of every run (`--epochs 3 --cpu`) before submission.
 
-## 5. PPI: sharing one backbone across graph sizes without changing the input
+## 5. Sharing one backbone across graphs without changing the input (written for PPI; kept)
+
+PPI was replaced by PPT-Ohmnet (user, 2026-08-27) after this analysis. It still decides the
+cross-graph design: PPT-Ohmnet's 144 tissue layers live on one aligned node set (Entrez ids),
+which is exactly the case where the first layer's per-node table *can* be shared — one protein
+table serves every tissue layer, and the model is size-free across layers because they are all
+subgraphs of the same 4,494 nodes. That is the setting of the later cross-graph phase; the
+unaligned case below is what PPI would have forced.
 
 The only size-tied parameter is the first layer's table W ∈ R^{N_g × 1024}. Everything after it
 (the residual block, the decoder-input LayerNorm, the bilinear W) is size-free already. The
