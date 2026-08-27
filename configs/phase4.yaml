@@ -21,17 +21,16 @@ smoke:        # laptop pipeline check: does raw adjacency -> GNN -> decoder trai
   dropout: 0.0
   references:
     - {arm: none, lr: 3.0e-4, width: 2048}   # the Phase-3 linear model: 0.918 AUROC on seeds 0-19
-main:         # pre-registered 2026-08-27 (docs/PLAN-PHASE4.md section 4); Marlowe, seeds 0-9; 770 runs
-  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+sweep:        # stage 1 (Marlowe): backbone x width x depth x LR at 3 seeds; pick the best 2-3 cells by val AUROC
+  seeds: [0, 1, 2]
   kinds: [gcn, gat, sage, gin]
   widths: [256, 1024]
   layers: [2, 4, 8]
   lr: [1.0e-3, 3.0e-3, 1.0e-2]
   dropout: 0.0
   references:
-    - {arm: gnn, kind: gcn, width: 256, layers: 2, lr: 3.0e-3, input: shuffled}   # Q3 control
-    - {arm: gnn, kind: gat, width: 256, layers: 2, lr: 3.0e-3, input: shuffled}
-    - {arm: none, lr: 3.0e-4, width: 2048}                                       # Phase-3 selections at this commit
-    - {arm: random, lr: 3.0e-3, bias: true, lr_bias: 3.0, width: 2048}
-    - {arm: pretrained, lr: 1.0e-2, bias: true, lr_bias: 1.0, width: 2048}
+    - {arm: none, lr: 3.0e-4, width: 2048}   # the linear model at this commit (paired deltas)
+final:        # stage 2 (Marlowe, filled after the sweep): the selected cells at seeds 0-9, shuffled-A controls,
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]      # and the Phase-3 references (none, random + SPD, pretrained + SPD) at this commit
+  references: []
   extend: []

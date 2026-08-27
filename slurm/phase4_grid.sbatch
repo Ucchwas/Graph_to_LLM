@@ -1,5 +1,6 @@
 #!/bin/bash
-# Usage: sbatch --array=0-7 slurm/phase4_grid.sbatch main 97        (770-run Phase-4 main stage)
+# Usage: sbatch --array=0-7 slurm/phase4_grid.sbatch sweep 28       (219-run Phase-4 sweep, 3 seeds)
+#        sbatch --array=0-7 slurm/phase4_grid.sbatch final <chunk>  (selected cells at 10 seeds + controls + references)
 #   task i runs run-list indices i*CHUNK .. i*CHUNK+CHUNK-1 sequentially (count from --list).
 #   QOS medium allows 32 submitted jobs per ACCOUNT (shared with teammates): keep arrays small.
 #SBATCH --job-name=g2l-p4

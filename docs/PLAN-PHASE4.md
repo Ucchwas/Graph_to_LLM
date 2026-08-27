@@ -20,7 +20,7 @@ loss: pos-weighted BCE on the hidden cells only; AdamW, one LR for tokenizer + b
 No node features, no text, no external embeddings. Everything trains. Harness, splits, seeds,
 masking, metrics, early stopping and controls are the Phase 2–3 ones unchanged.
 
-## 2. Smoke (laptop, 2026-08-27, `results/phase4/aggregate.md`, 27 rows @ 4638a4f)
+## 2. Smoke (laptop, 2026-08-27, `results/phase4/smoke/aggregate.md`, 27 rows @ 4638a4f)
 
 d 256, 2 blocks, LR {1e-3, 3e-3}, seeds 0–2; `none` re-run as the reference.
 
@@ -44,24 +44,29 @@ extends upward. 0.05 s/epoch, < 0.3 GB.
   random + SPD, pretrained + SPD at this commit)
 - **Q3** Is it the structure? (shuffled-A control on the two best kinds)
 
-## 4. The array (one submission, Marlowe, 1 GPU per task)
+## 4. Two stages (user, 2026-08-27: sweep at 1–3 seeds, then 10 seeds on the best 2–3 cells)
 
-| block | cells | seeds | runs |
-|---|---|---|---|
-| backbone grid: kind {gcn, gat, sage, gin} × d {256, 1024} × L {2, 4, 8} × LR {1e-3, 3e-3, 1e-2} | 72 | 0–9 | 720 |
-| shuffled-A control: gcn and gat at d 256, L 2, LR 3e-3 | 2 | 0–9 | 20 |
-| references at this commit: none (3e-4), random + SPD (3e-3 / 3.0), pretrained + SPD (1e-2 / 1.0) | 3 | 0–9 | 30 |
+**Stage 1 — sweep** (`sweep`, Marlowe, seeds 0–2): kind {gcn, gat, sage, gin} × d {256, 1024} ×
+L {2, 4, 8} × LR {1e-3, 3e-3, 1e-2} = 72 cells × 3 seeds = 216 runs, plus `none` at 3 seeds
+(paired deltas at this commit): 219 runs, ~4 GPU-h, `sbatch --array=0-7 slurm/phase4_grid.sbatch
+sweep 28`. Selection: mean val AUROC over the 3 seeds per cell; the best 2–3 cells (at most one
+per kind unless one kind dominates) go to stage 2. Edge rule: one ×3 LR step at 3 seeds if a
+chosen cell sits on the LR boundary.
 
-770 runs; estimate 8–12 GPU-h (GNN runs 20 s–2 min, Llama references 3 min). Dropout 0, weight
-decay 0.01, patience 200 — the smoke settings. GAE / GAT-with-features rows come from Phase 1
-(same protocol). Edge rule: one ×3 step if a selected LR sits on the grid boundary (1e-2 is
-expected to be interior). Seed rule: seeds 10–19 at the selected cells if a gate delta falls
-below its MDE. Selection per (kind, d, L): best mean val AUROC over seeds 0–9.
+**Stage 2 — final** (`final`, same commit, seeds 0–9): the chosen cells; shuffled-A control at
+each; references at this commit: `none` (3e-4), random + SPD (3e-3 / 3.0), pretrained + SPD
+(1e-2 / 1.0). ≈ 3 cells × 10 + 3 controls × 10 + 30 references = 90 runs. Paired deltas
+(SE / t / p / MDE) on all 10 seeds are the Phase-4 result. Seed rule: seeds 10–19 if a gate delta
+falls below its MDE.
+
+Dropout 0, weight decay 0.01, patience 200 (the smoke settings). GAE / GAT-with-features rows
+come from Phase 1 (same protocol). E1 stays the GNN's input-feature layer (user decision;
+message passing runs on the raw edge set of the input matrix, `g2l/gnn.py`); no ID embeddings.
 
 ## 5. Gate 4
 
 - [ ] `pytest tests/` green on both machines; cluster commit pinned for the whole phase
-- [ ] 770 rows; kind × d × L surface; every selected LR interior or extended
+- [ ] sweep surface (kind × d × L × LR, 3 seeds) and the final table (10 seeds); every selected LR interior or extended
 - [ ] paired deltas (SE / t / p / MDE) vs none, random + SPD, pretrained + SPD, and vs the
       shuffled control
 - [ ] walkthrough: the selected backbone seed 0 rebuilt on the laptop from its checkpoint,
