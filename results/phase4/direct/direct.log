@@ -1,0 +1,394 @@
+run gnnD-gcn256L2_nobias_real_f1.0_lr1e-03_s0 @ 6b4c6d05
+epoch    0 loss 1.3783 val_auroc 0.7978 best 0.7978@0
+epoch  100 loss 0.6425 val_auroc 0.8728 best 0.8728@100
+epoch  200 loss 0.3245 val_auroc 0.9135 best 0.9154@185
+epoch  300 loss 0.2726 val_auroc 0.9110 best 0.9178@221
+epoch  400 loss 0.2188 val_auroc 0.9128 best 0.9178@221
+done gnnD-gcn256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9285 ap=0.9358 ap_sparse=0.0096 best_epoch=221 0.05s/epoch peak=0.287299584GB
+run gnnD-gcn256L2_nobias_real_f1.0_lr1e-03_s1 @ 6b4c6d05
+epoch    0 loss 1.3699 val_auroc 0.8329 best 0.8329@0
+epoch  100 loss 0.6760 val_auroc 0.9089 best 0.9089@100
+epoch  200 loss 0.3333 val_auroc 0.9365 best 0.9385@175
+epoch  300 loss 0.2670 val_auroc 0.9369 best 0.9411@286
+epoch  400 loss 0.2512 val_auroc 0.9384 best 0.9419@377
+epoch  500 loss 0.2008 val_auroc 0.9375 best 0.9419@377
+done gnnD-gcn256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9315 ap=0.9367 ap_sparse=0.0130 best_epoch=377 0.05s/epoch peak=0.287366144GB
+run gnnD-gcn256L2_nobias_real_f1.0_lr1e-03_s2 @ 6b4c6d05
+epoch    0 loss 1.3776 val_auroc 0.7910 best 0.7910@0
+epoch  100 loss 0.6115 val_auroc 0.8817 best 0.8817@100
+epoch  200 loss 0.3131 val_auroc 0.9202 best 0.9202@200
+epoch  300 loss 0.2949 val_auroc 0.9253 best 0.9264@261
+epoch  400 loss 0.2246 val_auroc 0.9259 best 0.9312@386
+epoch  500 loss 0.1950 val_auroc 0.9257 best 0.9323@411
+epoch  600 loss 0.1607 val_auroc 0.9272 best 0.9341@543
+epoch  700 loss 0.2106 val_auroc 0.9255 best 0.9341@543
+done gnnD-gcn256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9396 ap=0.9501 ap_sparse=0.0162 best_epoch=543 0.06s/epoch peak=0.287349248GB
+run gnnD-gcn256L2_nobias_real_f1.0_lr3e-03_s0 @ 6b4c6d05
+epoch    0 loss 1.3783 val_auroc 0.8002 best 0.8002@0
+epoch  100 loss 0.3806 val_auroc 0.9123 best 0.9123@100
+epoch  200 loss 0.2947 val_auroc 0.9165 best 0.9263@129
+epoch  300 loss 0.2541 val_auroc 0.9162 best 0.9263@129
+done gnnD-gcn256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9295 ap=0.9351 ap_sparse=0.0097 best_epoch=129 0.06s/epoch peak=0.287350272GB
+run gnnD-gcn256L2_nobias_real_f1.0_lr3e-03_s1 @ 6b4c6d05
+epoch    0 loss 1.3699 val_auroc 0.8319 best 0.8319@0
+epoch  100 loss 0.4365 val_auroc 0.9309 best 0.9309@100
+epoch  200 loss 0.2850 val_auroc 0.9330 best 0.9367@148
+epoch  300 loss 0.2387 val_auroc 0.9378 best 0.9401@286
+epoch  400 loss 0.2151 val_auroc 0.9341 best 0.9432@340
+epoch  500 loss 0.1800 val_auroc 0.9337 best 0.9432@340
+done gnnD-gcn256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9298 ap=0.9393 ap_sparse=0.0138 best_epoch=340 0.05s/epoch peak=0.287366144GB
+run gnnD-gcn256L2_nobias_real_f1.0_lr3e-03_s2 @ 6b4c6d05
+epoch    0 loss 1.3776 val_auroc 0.7889 best 0.7889@0
+epoch  100 loss 0.3876 val_auroc 0.9104 best 0.9170@82
+epoch  200 loss 0.2728 val_auroc 0.9325 best 0.9325@200
+epoch  300 loss 0.2700 val_auroc 0.9277 best 0.9336@232
+epoch  400 loss 0.2071 val_auroc 0.9336 best 0.9376@382
+epoch  500 loss 0.1909 val_auroc 0.9264 best 0.9376@382
+done gnnD-gcn256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9422 ap=0.9495 ap_sparse=0.0165 best_epoch=382 0.05s/epoch peak=0.287346176GB
+run gnnD-gat256L2_nobias_real_f1.0_lr1e-03_s0 @ 6b4c6d05
+epoch    0 loss 1.3775 val_auroc 0.8130 best 0.8130@0
+epoch  100 loss 0.6244 val_auroc 0.8794 best 0.8794@100
+epoch  200 loss 0.3280 val_auroc 0.9078 best 0.9105@156
+epoch  300 loss 0.2672 val_auroc 0.9088 best 0.9152@277
+epoch  400 loss 0.2132 val_auroc 0.9100 best 0.9152@277
+done gnnD-gat256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9228 ap=0.9293 ap_sparse=0.0102 best_epoch=277 0.06s/epoch peak=0.31497728GB
+run gnnD-gat256L2_nobias_real_f1.0_lr1e-03_s1 @ af03a478
+epoch    0 loss 1.3687 val_auroc 0.8325 best 0.8325@0
+epoch  100 loss 0.6315 val_auroc 0.9135 best 0.9135@100
+epoch  200 loss 0.3285 val_auroc 0.9282 best 0.9350@150
+epoch  300 loss 0.2657 val_auroc 0.9276 best 0.9350@150
+done gnnD-gat256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9164 ap=0.9243 ap_sparse=0.0059 best_epoch=150 0.06s/epoch peak=0.314942464GB
+run gnnD-gat256L2_nobias_real_f1.0_lr1e-03_s2 @ af03a478
+epoch    0 loss 1.3768 val_auroc 0.7957 best 0.7957@0
+epoch  100 loss 0.5955 val_auroc 0.8870 best 0.8870@100
+epoch  200 loss 0.3128 val_auroc 0.9142 best 0.9162@173
+epoch  300 loss 0.2937 val_auroc 0.9175 best 0.9231@263
+epoch  400 loss 0.2330 val_auroc 0.9214 best 0.9254@332
+epoch  500 loss 0.1954 val_auroc 0.9213 best 0.9262@488
+epoch  600 loss 0.1554 val_auroc 0.9261 best 0.9275@543
+epoch  700 loss 0.1973 val_auroc 0.9266 best 0.9300@608
+epoch  800 loss 0.1577 val_auroc 0.9279 best 0.9300@608
+done gnnD-gat256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9379 ap=0.9447 ap_sparse=0.0139 best_epoch=608 0.06s/epoch peak=0.314990592GB
+run gnnD-gat256L2_nobias_real_f1.0_lr3e-03_s0 @ af03a478
+epoch    0 loss 1.3775 val_auroc 0.8172 best 0.8172@0
+epoch  100 loss 0.3787 val_auroc 0.9096 best 0.9096@100
+epoch  200 loss 0.2902 val_auroc 0.9124 best 0.9234@123
+epoch  300 loss 0.2402 val_auroc 0.9147 best 0.9234@123
+done gnnD-gat256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9270 ap=0.9301 ap_sparse=0.0081 best_epoch=123 0.06s/epoch peak=0.31497216GB
+run gnnD-gat256L2_nobias_real_f1.0_lr3e-03_s1 @ af03a478
+epoch    0 loss 1.3687 val_auroc 0.8279 best 0.8279@0
+epoch  100 loss 0.4283 val_auroc 0.9293 best 0.9293@100
+epoch  200 loss 0.2905 val_auroc 0.9223 best 0.9317@176
+epoch  300 loss 0.2291 val_auroc 0.9294 best 0.9324@213
+epoch  400 loss 0.2025 val_auroc 0.9238 best 0.9347@363
+epoch  500 loss 0.1709 val_auroc 0.9312 best 0.9347@363
+done gnnD-gat256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9214 ap=0.9324 ap_sparse=0.0120 best_epoch=363 0.06s/epoch peak=0.315004416GB
+run gnnD-gat256L2_nobias_real_f1.0_lr3e-03_s2 @ af03a478
+epoch    0 loss 1.3768 val_auroc 0.7965 best 0.7965@0
+epoch  100 loss 0.3932 val_auroc 0.9076 best 0.9128@97
+epoch  200 loss 0.2574 val_auroc 0.9212 best 0.9217@129
+epoch  300 loss 0.2666 val_auroc 0.9280 best 0.9289@295
+epoch  400 loss 0.2027 val_auroc 0.9231 best 0.9291@306
+epoch  500 loss 0.1805 val_auroc 0.9208 best 0.9291@306
+done gnnD-gat256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9356 ap=0.9416 ap_sparse=0.0148 best_epoch=306 0.08s/epoch peak=0.316022784GB
+run gnnD-sage256L2_nobias_real_f1.0_lr1e-03_s0 @ af03a478
+epoch    0 loss 1.3830 val_auroc 0.7273 best 0.7273@0
+epoch  100 loss 0.5218 val_auroc 0.8907 best 0.8907@100
+epoch  200 loss 0.3276 val_auroc 0.8995 best 0.9020@195
+epoch  300 loss 0.2569 val_auroc 0.9028 best 0.9093@259
+epoch  400 loss 0.2023 val_auroc 0.9066 best 0.9103@380
+epoch  500 loss 0.1645 val_auroc 0.9021 best 0.9103@380
+done gnnD-sage256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9199 ap=0.9293 ap_sparse=0.0082 best_epoch=380 0.08s/epoch peak=0.387158016GB
+run gnnD-sage256L2_nobias_real_f1.0_lr1e-03_s1 @ af03a478
+epoch    0 loss 1.3750 val_auroc 0.8053 best 0.8053@0
+epoch  100 loss 0.5240 val_auroc 0.9167 best 0.9174@92
+epoch  200 loss 0.3101 val_auroc 0.9252 best 0.9263@133
+epoch  300 loss 0.2568 val_auroc 0.9205 best 0.9299@219
+epoch  400 loss 0.2124 val_auroc 0.9223 best 0.9299@219
+done gnnD-sage256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9097 ap=0.9079 ap_sparse=0.0053 best_epoch=219 0.07s/epoch peak=0.386853888GB
+run gnnD-sage256L2_nobias_real_f1.0_lr1e-03_s2 @ af03a478
+epoch    0 loss 1.3825 val_auroc 0.7100 best 0.7100@0
+epoch  100 loss 0.5396 val_auroc 0.8884 best 0.8884@100
+epoch  200 loss 0.3046 val_auroc 0.8990 best 0.9077@174
+epoch  300 loss 0.3167 val_auroc 0.9077 best 0.9117@260
+epoch  400 loss 0.2073 val_auroc 0.9049 best 0.9125@366
+epoch  500 loss 0.1941 val_auroc 0.9030 best 0.9135@438
+epoch  600 loss 0.1755 val_auroc 0.9030 best 0.9135@438
+done gnnD-sage256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9197 ap=0.9253 ap_sparse=0.0083 best_epoch=438 0.07s/epoch peak=0.387132416GB
+run gnnD-sage256L2_nobias_real_f1.0_lr3e-03_s0 @ af03a478
+epoch    0 loss 1.3830 val_auroc 0.7333 best 0.7333@0
+epoch  100 loss 0.3816 val_auroc 0.9075 best 0.9075@100
+epoch  200 loss 0.2703 val_auroc 0.9111 best 0.9162@195
+epoch  300 loss 0.2117 val_auroc 0.9061 best 0.9167@256
+epoch  400 loss 0.1827 val_auroc 0.9118 best 0.9167@256
+done gnnD-sage256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9287 ap=0.9369 ap_sparse=0.0113 best_epoch=256 0.07s/epoch peak=0.387153408GB
+run gnnD-sage256L2_nobias_real_f1.0_lr3e-03_s1 @ af03a478
+epoch    0 loss 1.3750 val_auroc 0.8110 best 0.8110@0
+epoch  100 loss 0.4115 val_auroc 0.9251 best 0.9314@86
+epoch  200 loss 0.2602 val_auroc 0.9298 best 0.9325@176
+epoch  300 loss 0.2172 val_auroc 0.9282 best 0.9373@220
+epoch  400 loss 0.2018 val_auroc 0.9299 best 0.9373@220
+done gnnD-sage256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9252 ap=0.9297 ap_sparse=0.0069 best_epoch=220 0.07s/epoch peak=0.386853888GB
+run gnnD-sage256L2_nobias_real_f1.0_lr3e-03_s2 @ af03a478
+epoch    0 loss 1.3825 val_auroc 0.7150 best 0.7150@0
+epoch  100 loss 0.4019 val_auroc 0.9072 best 0.9139@96
+epoch  200 loss 0.2639 val_auroc 0.9141 best 0.9197@132
+epoch  300 loss 0.2564 val_auroc 0.9131 best 0.9224@259
+epoch  400 loss 0.1885 val_auroc 0.9185 best 0.9224@259
+epoch  500 loss 0.1813 val_auroc 0.9139 best 0.9248@417
+epoch  600 loss 0.1492 val_auroc 0.9125 best 0.9248@417
+done gnnD-sage256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9248 ap=0.9334 ap_sparse=0.0136 best_epoch=417 0.08s/epoch peak=0.387073024GB
+run gnnD-gin256L2_nobias_real_f1.0_lr1e-03_s0 @ af03a478
+epoch    0 loss 1.3889 val_auroc 0.6867 best 0.6867@0
+epoch  100 loss 0.6225 val_auroc 0.8733 best 0.8775@97
+epoch  200 loss 0.4407 val_auroc 0.9118 best 0.9137@198
+epoch  300 loss 0.3649 val_auroc 0.9145 best 0.9186@272
+epoch  400 loss 0.2955 val_auroc 0.9107 best 0.9193@360
+epoch  500 loss 0.2373 val_auroc 0.9130 best 0.9193@360
+done gnnD-gin256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9272 ap=0.9258 ap_sparse=0.0087 best_epoch=360 0.08s/epoch peak=0.345727488GB
+run gnnD-gin256L2_nobias_real_f1.0_lr1e-03_s1 @ af03a478
+epoch    0 loss 1.3808 val_auroc 0.7161 best 0.7161@0
+epoch  100 loss 0.6412 val_auroc 0.9153 best 0.9189@96
+epoch  200 loss 0.4250 val_auroc 0.9309 best 0.9369@173
+epoch  300 loss 0.3624 val_auroc 0.9284 best 0.9369@173
+done gnnD-gin256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9074 ap=0.8977 ap_sparse=0.0071 best_epoch=173 0.08s/epoch peak=0.34574592GB
+run gnnD-gin256L2_nobias_real_f1.0_lr1e-03_s2 @ af03a478
+epoch    0 loss 1.3874 val_auroc 0.7366 best 0.7366@0
+epoch  100 loss 0.5846 val_auroc 0.8885 best 0.8989@95
+epoch  200 loss 0.4823 val_auroc 0.8941 best 0.9033@157
+epoch  300 loss 0.4470 val_auroc 0.9062 best 0.9109@288
+epoch  400 loss 0.3358 val_auroc 0.9065 best 0.9129@381
+epoch  500 loss 0.2768 val_auroc 0.9061 best 0.9129@381
+epoch  600 loss 0.2268 val_auroc 0.9088 best 0.9136@538
+epoch  700 loss 0.2914 val_auroc 0.9053 best 0.9136@538
+epoch  800 loss 0.2017 val_auroc 0.9094 best 0.9155@779
+epoch  900 loss 0.1909 val_auroc 0.9107 best 0.9170@873
+epoch 1000 loss 0.2131 val_auroc 0.9139 best 0.9170@873
+done gnnD-gin256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9336 ap=0.9399 ap_sparse=0.0134 best_epoch=873 0.08s/epoch peak=0.345722368GB
+run gnnD-gin256L2_nobias_real_f1.0_lr3e-03_s0 @ af03a478
+epoch    0 loss 1.3889 val_auroc 0.6978 best 0.6978@0
+epoch  100 loss 0.5531 val_auroc 0.9101 best 0.9101@100
+epoch  200 loss 0.4015 val_auroc 0.9201 best 0.9210@161
+epoch  300 loss 0.3357 val_auroc 0.9205 best 0.9258@244
+epoch  400 loss 0.2751 val_auroc 0.9168 best 0.9258@244
+done gnnD-gin256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9347 ap=0.9400 ap_sparse=0.0089 best_epoch=244 0.07s/epoch peak=0.345705472GB
+run gnnD-gin256L2_nobias_real_f1.0_lr3e-03_s1 @ af03a478
+epoch    0 loss 1.3808 val_auroc 0.7277 best 0.7277@0
+epoch  100 loss 0.5302 val_auroc 0.9212 best 0.9267@86
+epoch  200 loss 0.4050 val_auroc 0.9262 best 0.9369@172
+epoch  300 loss 0.3382 val_auroc 0.9318 best 0.9369@172
+epoch  400 loss 0.3007 val_auroc 0.9304 best 0.9375@334
+epoch  500 loss 0.2436 val_auroc 0.9296 best 0.9375@334
+done gnnD-gin256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9172 ap=0.9172 ap_sparse=0.0079 best_epoch=334 0.05s/epoch peak=0.345727488GB
+run gnnD-gin256L2_nobias_real_f1.0_lr3e-03_s2 @ af03a478
+epoch    0 loss 1.3874 val_auroc 0.7457 best 0.7457@0
+epoch  100 loss 0.5490 val_auroc 0.8869 best 0.9010@96
+epoch  200 loss 0.4216 val_auroc 0.8996 best 0.9043@171
+epoch  300 loss 0.4161 val_auroc 0.9094 best 0.9155@259
+epoch  400 loss 0.3005 val_auroc 0.9077 best 0.9157@384
+epoch  500 loss 0.2627 val_auroc 0.9117 best 0.9171@468
+epoch  600 loss 0.2028 val_auroc 0.9114 best 0.9171@468
+done gnnD-gin256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9344 ap=0.9397 ap_sparse=0.0095 best_epoch=468 0.05s/epoch peak=0.345689088GB
+run gnn-gcn256L2_nobias_real_f1.0_lr1e-03_s0 @ af03a478
+epoch    0 loss 1.3807 val_auroc 0.7786 best 0.7786@0
+epoch  100 loss 0.5620 val_auroc 0.8900 best 0.8900@100
+epoch  200 loss 0.3057 val_auroc 0.9157 best 0.9186@193
+epoch  300 loss 0.2395 val_auroc 0.9146 best 0.9190@219
+epoch  400 loss 0.1955 val_auroc 0.9113 best 0.9190@219
+done gnn-gcn256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9317 ap=0.9373 ap_sparse=0.0111 best_epoch=219 0.05s/epoch peak=0.296421888GB
+run gnn-gcn256L2_nobias_real_f1.0_lr1e-03_s1 @ af03a478
+epoch    0 loss 1.3724 val_auroc 0.8087 best 0.8087@0
+epoch  100 loss 0.5880 val_auroc 0.9166 best 0.9166@100
+epoch  200 loss 0.2860 val_auroc 0.9329 best 0.9401@142
+epoch  300 loss 0.2340 val_auroc 0.9324 best 0.9401@142
+done gnn-gcn256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9190 ap=0.9218 ap_sparse=0.0066 best_epoch=142 0.06s/epoch peak=0.29640192GB
+run gnn-gcn256L2_nobias_real_f1.0_lr1e-03_s2 @ af03a478
+epoch    0 loss 1.3800 val_auroc 0.7907 best 0.7907@0
+epoch  100 loss 0.5765 val_auroc 0.8830 best 0.8830@100
+epoch  200 loss 0.2815 val_auroc 0.9162 best 0.9197@173
+epoch  300 loss 0.2755 val_auroc 0.9238 best 0.9273@292
+epoch  400 loss 0.1941 val_auroc 0.9215 best 0.9273@292
+done gnn-gcn256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9342 ap=0.9410 ap_sparse=0.0103 best_epoch=292 0.05s/epoch peak=0.29640704GB
+run gnn-gcn256L2_nobias_real_f1.0_lr3e-03_s0 @ af03a478
+epoch    0 loss 1.3807 val_auroc 0.7792 best 0.7792@0
+epoch  100 loss 0.3533 val_auroc 0.9184 best 0.9184@100
+epoch  200 loss 0.2607 val_auroc 0.9196 best 0.9257@137
+epoch  300 loss 0.2231 val_auroc 0.9239 best 0.9257@137
+done gnn-gcn256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9350 ap=0.9376 ap_sparse=0.0104 best_epoch=137 0.05s/epoch peak=0.296421888GB
+run gnn-gcn256L2_nobias_real_f1.0_lr3e-03_s1 @ af03a478
+epoch    0 loss 1.3724 val_auroc 0.8089 best 0.8089@0
+epoch  100 loss 0.3876 val_auroc 0.9298 best 0.9317@86
+epoch  200 loss 0.2571 val_auroc 0.9255 best 0.9317@86
+epoch  300 loss 0.2136 val_auroc 0.9306 best 0.9350@259
+epoch  400 loss 0.1930 val_auroc 0.9263 best 0.9350@317
+epoch  500 loss 0.1556 val_auroc 0.9280 best 0.9350@317
+done gnn-gcn256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9310 ap=0.9381 ap_sparse=0.0183 best_epoch=317 0.05s/epoch peak=0.296408064GB
+run gnn-gcn256L2_nobias_real_f1.0_lr3e-03_s2 @ af03a478
+epoch    0 loss 1.3800 val_auroc 0.7910 best 0.7910@0
+epoch  100 loss 0.3667 val_auroc 0.9172 best 0.9194@98
+epoch  200 loss 0.2423 val_auroc 0.9282 best 0.9300@177
+epoch  300 loss 0.2545 val_auroc 0.9291 best 0.9319@232
+epoch  400 loss 0.1883 val_auroc 0.9259 best 0.9319@232
+epoch  500 loss 0.1695 val_auroc 0.9262 best 0.9344@459
+epoch  600 loss 0.1437 val_auroc 0.9265 best 0.9344@459
+epoch  700 loss 0.1840 val_auroc 0.9282 best 0.9367@632
+epoch  800 loss 0.1432 val_auroc 0.9317 best 0.9367@632
+done gnn-gcn256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9335 ap=0.9431 ap_sparse=0.0193 best_epoch=632 0.06s/epoch peak=0.29640704GB
+run gnn-gat256L2_nobias_real_f1.0_lr1e-03_s0 @ af03a478
+epoch    0 loss 1.3803 val_auroc 0.7915 best 0.7915@0
+epoch  100 loss 0.5465 val_auroc 0.8876 best 0.8876@100
+epoch  200 loss 0.2841 val_auroc 0.9071 best 0.9102@189
+epoch  300 loss 0.2230 val_auroc 0.9104 best 0.9141@262
+epoch  400 loss 0.1812 val_auroc 0.9103 best 0.9147@319
+epoch  500 loss 0.1644 val_auroc 0.9136 best 0.9147@319
+done gnn-gat256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9255 ap=0.9294 ap_sparse=0.0116 best_epoch=319 0.06s/epoch peak=0.32453888GB
+run gnn-gat256L2_nobias_real_f1.0_lr1e-03_s1 @ af03a478
+epoch    0 loss 1.3724 val_auroc 0.8068 best 0.8068@0
+epoch  100 loss 0.5572 val_auroc 0.9266 best 0.9266@100
+epoch  200 loss 0.2739 val_auroc 0.9386 best 0.9460@146
+epoch  300 loss 0.2241 val_auroc 0.9377 best 0.9460@146
+done gnn-gat256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9176 ap=0.9166 ap_sparse=0.0060 best_epoch=146 0.06s/epoch peak=0.324393984GB
+run gnn-gat256L2_nobias_real_f1.0_lr1e-03_s2 @ af03a478
+epoch    0 loss 1.3795 val_auroc 0.7921 best 0.7921@0
+epoch  100 loss 0.5443 val_auroc 0.9018 best 0.9018@100
+epoch  200 loss 0.2742 val_auroc 0.9115 best 0.9198@119
+epoch  300 loss 0.2728 val_auroc 0.9217 best 0.9227@298
+epoch  400 loss 0.1851 val_auroc 0.9168 best 0.9227@298
+done gnn-gat256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9278 ap=0.9343 ap_sparse=0.0091 best_epoch=298 0.06s/epoch peak=0.324596224GB
+run gnn-gat256L2_nobias_real_f1.0_lr3e-03_s0 @ af03a478
+epoch    0 loss 1.3803 val_auroc 0.7922 best 0.7922@0
+epoch  100 loss 0.3260 val_auroc 0.9179 best 0.9179@100
+epoch  200 loss 0.2657 val_auroc 0.9184 best 0.9251@156
+epoch  300 loss 0.2076 val_auroc 0.9172 best 0.9251@156
+done gnn-gat256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9360 ap=0.9387 ap_sparse=0.0094 best_epoch=156 0.06s/epoch peak=0.324306432GB
+run gnn-gat256L2_nobias_real_f1.0_lr3e-03_s1 @ af03a478
+epoch    0 loss 1.3724 val_auroc 0.8073 best 0.8073@0
+epoch  100 loss 0.3661 val_auroc 0.9356 best 0.9384@92
+epoch  200 loss 0.2481 val_auroc 0.9371 best 0.9410@131
+epoch  300 loss 0.2100 val_auroc 0.9375 best 0.9410@131
+done gnn-gat256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9254 ap=0.9328 ap_sparse=0.0083 best_epoch=131 0.06s/epoch peak=0.324393984GB
+run gnn-gat256L2_nobias_real_f1.0_lr3e-03_s2 @ af03a478
+epoch    0 loss 1.3795 val_auroc 0.7903 best 0.7903@0
+epoch  100 loss 0.3557 val_auroc 0.9181 best 0.9253@82
+epoch  200 loss 0.2306 val_auroc 0.9245 best 0.9292@160
+epoch  300 loss 0.2431 val_auroc 0.9264 best 0.9292@160
+done gnn-gat256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9316 ap=0.9412 ap_sparse=0.0119 best_epoch=160 0.06s/epoch peak=0.324370432GB
+run gnn-sage256L2_nobias_real_f1.0_lr1e-03_s0 @ af03a478
+epoch    0 loss 1.3826 val_auroc 0.7107 best 0.7107@0
+epoch  100 loss 0.5293 val_auroc 0.8849 best 0.8849@100
+epoch  200 loss 0.2933 val_auroc 0.9036 best 0.9085@158
+epoch  300 loss 0.2196 val_auroc 0.9082 best 0.9143@264
+epoch  400 loss 0.1741 val_auroc 0.9085 best 0.9143@264
+done gnn-sage256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9265 ap=0.9262 ap_sparse=0.0073 best_epoch=264 0.06s/epoch peak=0.303693824GB
+run gnn-sage256L2_nobias_real_f1.0_lr1e-03_s1 @ af03a478
+epoch    0 loss 1.3747 val_auroc 0.7493 best 0.7493@0
+epoch  100 loss 0.5705 val_auroc 0.9051 best 0.9051@100
+epoch  200 loss 0.2753 val_auroc 0.9311 best 0.9329@174
+epoch  300 loss 0.2062 val_auroc 0.9289 best 0.9357@261
+epoch  400 loss 0.1848 val_auroc 0.9286 best 0.9357@261
+done gnn-sage256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9162 ap=0.9213 ap_sparse=0.0070 best_epoch=261 0.06s/epoch peak=0.303368704GB
+run gnn-sage256L2_nobias_real_f1.0_lr1e-03_s2 @ af03a478
+epoch    0 loss 1.3816 val_auroc 0.7267 best 0.7267@0
+epoch  100 loss 0.5337 val_auroc 0.8993 best 0.8993@99
+epoch  200 loss 0.2577 val_auroc 0.9126 best 0.9172@183
+epoch  300 loss 0.2763 val_auroc 0.9194 best 0.9219@258
+epoch  400 loss 0.1728 val_auroc 0.9172 best 0.9255@388
+epoch  500 loss 0.1664 val_auroc 0.9072 best 0.9255@388
+done gnn-sage256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9242 ap=0.9301 ap_sparse=0.0074 best_epoch=388 0.06s/epoch peak=0.303333376GB
+run gnn-sage256L2_nobias_real_f1.0_lr3e-03_s0 @ af03a478
+epoch    0 loss 1.3826 val_auroc 0.7137 best 0.7137@0
+epoch  100 loss 0.3582 val_auroc 0.9097 best 0.9097@100
+epoch  200 loss 0.2674 val_auroc 0.9126 best 0.9179@156
+epoch  300 loss 0.2068 val_auroc 0.9199 best 0.9213@276
+epoch  400 loss 0.1667 val_auroc 0.9150 best 0.9228@312
+epoch  500 loss 0.1354 val_auroc 0.9162 best 0.9228@312
+done gnn-sage256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9266 ap=0.9293 ap_sparse=0.0102 best_epoch=312 0.06s/epoch peak=0.303179776GB
+run gnn-sage256L2_nobias_real_f1.0_lr3e-03_s1 @ af03a478
+epoch    0 loss 1.3747 val_auroc 0.7477 best 0.7477@0
+epoch  100 loss 0.3971 val_auroc 0.9303 best 0.9311@88
+epoch  200 loss 0.2383 val_auroc 0.9303 best 0.9367@132
+epoch  300 loss 0.2022 val_auroc 0.9280 best 0.9367@132
+done gnn-sage256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9193 ap=0.9242 ap_sparse=0.0075 best_epoch=132 0.05s/epoch peak=0.303369728GB
+run gnn-sage256L2_nobias_real_f1.0_lr3e-03_s2 @ af03a478
+epoch    0 loss 1.3816 val_auroc 0.7252 best 0.7252@0
+epoch  100 loss 0.3643 val_auroc 0.9197 best 0.9218@89
+epoch  200 loss 0.2366 val_auroc 0.9258 best 0.9343@181
+epoch  300 loss 0.2495 val_auroc 0.9258 best 0.9343@181
+done gnn-sage256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9291 ap=0.9366 ap_sparse=0.0077 best_epoch=181 0.06s/epoch peak=0.30323968GB
+run gnn-gin256L2_nobias_real_f1.0_lr1e-03_s0 @ af03a478
+epoch    0 loss 1.3828 val_auroc 0.7611 best 0.7611@0
+epoch  100 loss 0.5444 val_auroc 0.8943 best 0.8943@100
+epoch  200 loss 0.3613 val_auroc 0.9061 best 0.9064@156
+epoch  300 loss 0.2886 val_auroc 0.9053 best 0.9121@224
+epoch  400 loss 0.2366 val_auroc 0.9078 best 0.9135@356
+epoch  500 loss 0.1919 val_auroc 0.9110 best 0.9149@431
+epoch  600 loss 0.1857 val_auroc 0.9109 best 0.9149@431
+done gnn-gin256L2_nobias_real_f1.0_lr1e-03_s0  auc=0.9225 ap=0.9200 ap_sparse=0.0082 best_epoch=431 0.06s/epoch peak=0.309521408GB
+run gnn-gin256L2_nobias_real_f1.0_lr1e-03_s1 @ af03a478
+epoch    0 loss 1.3745 val_auroc 0.7599 best 0.7599@0
+epoch  100 loss 0.5778 val_auroc 0.9232 best 0.9257@99
+epoch  200 loss 0.3428 val_auroc 0.9282 best 0.9391@173
+epoch  300 loss 0.2770 val_auroc 0.9343 best 0.9395@261
+epoch  400 loss 0.2496 val_auroc 0.9313 best 0.9439@358
+epoch  500 loss 0.2054 val_auroc 0.9321 best 0.9439@358
+done gnn-gin256L2_nobias_real_f1.0_lr1e-03_s1  auc=0.9132 ap=0.9142 ap_sparse=0.0062 best_epoch=358 0.06s/epoch peak=0.309453824GB
+run gnn-gin256L2_nobias_real_f1.0_lr1e-03_s2 @ af03a478
+epoch    0 loss 1.3817 val_auroc 0.7349 best 0.7349@0
+epoch  100 loss 0.5704 val_auroc 0.8891 best 0.8891@100
+epoch  200 loss 0.3362 val_auroc 0.9111 best 0.9159@197
+epoch  300 loss 0.3140 val_auroc 0.9195 best 0.9266@261
+epoch  400 loss 0.2154 val_auroc 0.9216 best 0.9266@261
+done gnn-gin256L2_nobias_real_f1.0_lr1e-03_s2  auc=0.9263 ap=0.9266 ap_sparse=0.0056 best_epoch=261 0.06s/epoch peak=0.309496832GB
+run gnn-gin256L2_nobias_real_f1.0_lr3e-03_s0 @ af03a478
+epoch    0 loss 1.3828 val_auroc 0.7749 best 0.7749@0
+epoch  100 loss 0.4623 val_auroc 0.9015 best 0.9066@88
+epoch  200 loss 0.3482 val_auroc 0.9096 best 0.9159@119
+epoch  300 loss 0.2880 val_auroc 0.9125 best 0.9167@273
+epoch  400 loss 0.2263 val_auroc 0.9121 best 0.9174@329
+epoch  500 loss 0.1953 val_auroc 0.9147 best 0.9184@451
+epoch  600 loss 0.2015 val_auroc 0.9164 best 0.9190@597
+epoch  700 loss 0.2134 val_auroc 0.9133 best 0.9190@597
+epoch  800 loss 0.1659 val_auroc 0.9141 best 0.9192@712
+epoch  900 loss 0.1741 val_auroc 0.9167 best 0.9205@882
+epoch 1000 loss 0.1448 val_auroc 0.9175 best 0.9238@925
+epoch 1100 loss 0.1764 val_auroc 0.9170 best 0.9238@925
+done gnn-gin256L2_nobias_real_f1.0_lr3e-03_s0  auc=0.9233 ap=0.9267 ap_sparse=0.0170 best_epoch=925 0.06s/epoch peak=0.309489664GB
+run gnn-gin256L2_nobias_real_f1.0_lr3e-03_s1 @ af03a478
+epoch    0 loss 1.3745 val_auroc 0.7577 best 0.7577@0
+epoch  100 loss 0.4799 val_auroc 0.9346 best 0.9390@81
+epoch  200 loss 0.3433 val_auroc 0.9327 best 0.9405@172
+epoch  300 loss 0.2731 val_auroc 0.9323 best 0.9405@172
+done gnn-gin256L2_nobias_real_f1.0_lr3e-03_s1  auc=0.9134 ap=0.9181 ap_sparse=0.0059 best_epoch=172 0.06s/epoch peak=0.309485056GB
+run gnn-gin256L2_nobias_real_f1.0_lr3e-03_s2 @ af03a478
+epoch    0 loss 1.3817 val_auroc 0.7450 best 0.7450@0
+epoch  100 loss 0.4383 val_auroc 0.9123 best 0.9134@82
+epoch  200 loss 0.2894 val_auroc 0.9160 best 0.9246@189
+epoch  300 loss 0.3061 val_auroc 0.9241 best 0.9298@290
+epoch  400 loss 0.2130 val_auroc 0.9261 best 0.9307@345
+epoch  500 loss 0.2064 val_auroc 0.9224 best 0.9329@416
+epoch  600 loss 0.1788 val_auroc 0.9261 best 0.9329@416
+done gnn-gin256L2_nobias_real_f1.0_lr3e-03_s2  auc=0.9278 ap=0.9341 ap_sparse=0.0098 best_epoch=416 0.06s/epoch peak=0.309471744GB
+run none_nobias_real_f1.0_lr3e-04_s0 @ af03a478
+epoch    0 loss 1.3842 val_auroc 0.7327 best 0.7327@0
+epoch  100 loss 0.6088 val_auroc 0.8415 best 0.8469@20
+epoch  200 loss 0.2516 val_auroc 0.9019 best 0.9019@200
+epoch  300 loss 0.1903 val_auroc 0.9025 best 0.9059@268
+epoch  400 loss 0.1516 val_auroc 0.9049 best 0.9059@268
+epoch  500 loss 0.1255 val_auroc 0.9009 best 0.9067@419
+epoch  600 loss 0.1334 val_auroc 0.8918 best 0.9067@419
+done none_nobias_real_f1.0_lr3e-04_s0  auc=0.9154 ap=0.9260 ap_sparse=0.0196 best_epoch=419 0.07s/epoch peak=0.517211648GB
+run none_nobias_real_f1.0_lr3e-04_s1 @ af03a478
+epoch    0 loss 1.3758 val_auroc 0.7453 best 0.7453@0
+epoch  100 loss 0.5987 val_auroc 0.8755 best 0.8783@22
+epoch  200 loss 0.2439 val_auroc 0.9207 best 0.9228@171
+epoch  300 loss 0.1841 val_auroc 0.9194 best 0.9243@223
+epoch  400 loss 0.1642 val_auroc 0.9196 best 0.9243@223
+done none_nobias_real_f1.0_lr3e-04_s1  auc=0.9177 ap=0.9248 ap_sparse=0.0104 best_epoch=223 0.07s/epoch peak=0.517211648GB
+run none_nobias_real_f1.0_lr3e-04_s2 @ af03a478
+epoch    0 loss 1.3832 val_auroc 0.7450 best 0.7450@0
+epoch  100 loss 0.6026 val_auroc 0.8361 best 0.8583@20
+epoch  200 loss 0.2504 val_auroc 0.8917 best 0.8922@185
+epoch  300 loss 0.2261 val_auroc 0.8955 best 0.8979@246
+epoch  400 loss 0.1596 val_auroc 0.8928 best 0.8979@246
+done none_nobias_real_f1.0_lr3e-04_s2  auc=0.9226 ap=0.9361 ap_sparse=0.0103 best_epoch=246 0.07s/epoch peak=0.517211648GB
+direct exit 0
