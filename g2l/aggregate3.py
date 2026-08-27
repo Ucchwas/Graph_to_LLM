@@ -200,10 +200,19 @@ def bias_tables(selected: dict) -> str:
         rs = [r for r in s["rows"] if "bias_table" in r]
         if not rs:
             continue
-        t = np.mean([r["bias_table"] for r in rs], axis=0)  # [heads, buckets], mean over seeds
+        T = np.array([r["bias_table"] for r in rs])  # [seeds, heads, buckets]
+        t = T.mean(0)
         out.append(f"\n{lab} — learned bias, mean over seeds and heads per distance bucket (0 self … 9 far/unreachable):")
         out.append("  " + "  ".join(f"d{k}:{v:+.3f}" for k, v in enumerate(t.mean(0))))
-        out.append(f"  per-head spread (std over heads) at d1 {t[:, 1].std():.3f}, d9 {t[:, 9].std():.3f}; max |bias| {np.abs(t).max():.3f}")
+        out.append(f"  per-head spread (std over heads) at d1 {t[:, 1].std():.3f}, d9 {t[:, 9].std():.3f}; "
+                   f"max |bias| {np.abs(T).max():.2f}, mean |bias| {np.abs(T[:, :, 1:]).mean():.2f}")
+        # near-vs-far preference per head: mean bias at d1-3 minus the far bucket; a head is
+        # "consistent" if it takes the same sign in >= 80 % of seeds (head identity is fixed)
+        rel = T[:, :, 1:4].mean(-1) - T[:, :, 9]
+        near = (rel > 0).mean(0)
+        out.append(f"  heads preferring near (d1-3 > d9): {(rel > 0).mean() * 100:.0f}% of head×seed; "
+                   f"consistent near {(near >= 0.8).sum()}, consistent far {(near <= 0.2).sum()}, mixed {((near > 0.2) & (near < 0.8)).sum()} of {T.shape[1]}; "
+                   f"mean |near − far| {np.abs(rel).mean():.2f}")
     return "\n".join(out)
 
 
