@@ -1,0 +1,6 @@
+Loading weights:   0%|          | 0/146 [00:00<?, ?it/s]Loading weights: 100%|██████████| 146/146 [00:00<00:00, 6181.54it/s]
+lora params 11272192 trainable in body 11339776 lora dtype {torch.float32}
+step0 grad |B| 2.657e+01 |A| 0.000e+00 (A must be 0 at init), bias grad 8.082e-03
+losses [1.2292, 1.9654, 1.997, 1.374, 1.6595, 1.4206] max|B| after 30 steps 0.00204
+376 ms/step at N=512, peak 4.3 GB
+eval ok, finite: True
