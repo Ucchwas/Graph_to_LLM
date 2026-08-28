@@ -1,9 +1,11 @@
 # Phase 8 — preliminary: the LGM beats a capacity-matched size-independent GCN, and one checkpoint holds from N ≤ 30 to N = 213
 
 **Preliminary result, one seed.** Gates 8.0–8.2 pass. On held-out `ogbg-molhiv` graphs the
-incidence-aware Graph Transformer beats a capacity-matched size-independent GCN by **+0.065 AUROC /
-+0.204 AP** at sizes it trained on and **+0.070 AUROC / +0.192 AP** at sizes it never saw, and both
-architectures transfer across size essentially without decay.
+incidence-aware Graph Transformer scores **+0.065 AUROC / +0.204 AP** above a capacity-matched
+size-independent GCN at sizes it trained on and **+0.070 AUROC / +0.192 AP** at sizes it never saw,
+and both architectures transfer across size essentially without decay. **That gap is confounded**:
+the GCN cannot consume edge values, so it is not a clean architecture comparison — see
+*The GCN comparison is confounded too*.
 
 Marlowe array **452985**, 3 tasks, 1 GPU each, **25 min total (0.4 GPU-h)**, code commit `ac64f63`,
 one seed, identical masks across arms. Rows: `results/phase8/rows/`.
@@ -46,7 +48,8 @@ accuracy, not transfer.
 
 The GCN is given the LGM's full structural node featuriser rather than a bare scalar, and its width
 (800) is chosen to match the LGM's parameter count to within 0.3 %. Both choices work against the
-LGM deliberately; a handicapped baseline would have flattered it.
+LGM deliberately; a handicapped baseline would have flattered it. It is still not a clean
+architecture comparison, for the reason below.
 
 **Two baselines run backwards on molecules** and were declared as their own arms before the run
 rather than sign-flipped afterwards: common neighbours 0.44 (atoms sharing a neighbour sit at ring
@@ -64,8 +67,29 @@ why that arm lands at 0.7948 against the degree prior's 0.7697.
 
 The +0.134 is therefore structure-plus-edge-values combined, not edge values alone. Isolating edge
 values needs an arm with edge states but constant (all-ones) values — a deferred ablation.
-**The +0.065 / +0.070 over the GCN is the defensible number**: both arms have full structural
-access and matched capacity, so it isolates the body.
+
+## The GCN comparison is confounded too — what it does and does not support
+
+**`GCNConv` cannot consume edge values**, so the GCN never sees the 3-dim bond features the LGM
+gets. The +0.065 / +0.070 therefore confounds three differences at once:
+
+1. incidence attention vs message passing,
+2. **bond features vs none**,
+3. dense global attention vs a 4-hop receptive field.
+
+Given how much the no-edge arm showed structural information is worth here, (2) could account for
+much of the gap. **Supported: the LGM scores higher than a capacity-matched size-independent GCN.
+Not supported: that incidence attention beats message passing.** No arm in this run isolates the
+body, and the earlier claim in this file that the GCN comparison did so was wrong.
+
+The decomposition needs one more arm — the LGM with constant all-ones edge values. Then
+`lgm − lgm_flatedge` is the edge-value contribution and `lgm_flatedge − gcn` is the architecture
+contribution, both at matched capacity and matched structural access. An edge-aware message-passing
+baseline (GINEConv) would be the complementary check.
+
+Two smaller caveats on the same comparison: the GCN's width is 800 against the LGM's 256 (parameters
+are matched, width is not), and neither arm's hyperparameters were tuned separately — both use a
+config written with the LGM in mind.
 
 ## Gate 8.0 / 8.1 and the decoder
 
