@@ -1,111 +1,108 @@
-# Phase 8 Gates 8.0–8.2 — one checkpoint transfers across graph sizes, and the edge channel is what makes it work
+# Phase 8 — preliminary: the LGM beats a capacity-matched size-independent GCN, and one checkpoint holds from N ≤ 30 to N = 213
 
-**Claim (gate scope only):** the incidence-aware Graph Transformer is worth building further. One
-checkpoint trained on molecular graphs with **N ≤ 30** scores held-out graphs up to **N = 213** at
-**0.9280 AUROC**, essentially unchanged from the 0.9338 it gets at sizes it saw. Deleting the edge
-states — at a **byte-identical parameter count** — drops that to **0.8033**, barely above a degree
-heuristic's 0.7705. This is a gate, not a benchmark result: see *What this does not show*.
+**Preliminary result, one seed.** Gates 8.0–8.2 pass. On held-out `ogbg-molhiv` graphs the
+incidence-aware Graph Transformer beats a capacity-matched size-independent GCN by **+0.065 AUROC /
++0.204 AP** at sizes it trained on and **+0.070 AUROC / +0.192 AP** at sizes it never saw, and both
+architectures transfer across size essentially without decay.
 
-Gates 8.0 / 8.1 (CPU, 31 tests) pass locally and on the cluster build. Gate 8.2: Marlowe array
-**452926**, 2 tasks, 1 GPU each, **18 min total (0.3 GPU-h)**, code commit `bd358dd`.
-Rows: `results/phase8/rows/`.
+Marlowe array **452985**, 3 tasks, 1 GPU each, **25 min total (0.4 GPU-h)**, code commit `ac64f63`,
+one seed, identical masks across arms. Rows: `results/phase8/rows/`.
+Supersedes job 452918/452926, which ran before the decoder was symmetrised (LGM 0.9338/0.9280 then,
+0.9307/0.9267 now); those rows are deleted, the numbers kept here.
 
 ## Setup
 
-Architecture (`g2l/lgm.py`, full detail in `docs/PLAN-PHASE8.md`): the raw graph
-`(n, edge_index [2,M], edge_value [M,k])` is the external input; node states `[N,d]` and edge states
-`[M_u,d]` are internal representations from shared projections. One transformer over both types with
-a single shared QKV — node←node dense, node←edge and edge←node on the incidence relation, the first
-two sharing one softmax against a common max. `d=256, L=4, H=8`, 3,229,728 parameters, no GCN
-anywhere, no node-ID table, no supplied node features, no padding.
+`g2l/lgm.py`: raw graph `(n, edge_index [2,M], edge_value [M,k])` in; node states `[N,d]` and edge
+states `[M_u,d]` are internal; one transformer over both with shared QKV — node←node dense,
+node←edge and edge←node on the incidence relation, sharing one softmax. `d=256, L=4, H=8`, 3.23 M
+parameters. No GCN inside, no node-ID table, no supplied node features, no padding.
 
-Data: `ogbg-molhiv`, 41,123 graphs after filtering (N ≥ 4, ≥ 3 edges), N = 4–222, with genuine
-3-dim bond features. **Trained only on N ≤ 30** (25,589 graphs), then scored on held-out graphs at
-sizes seen (3,193) and never seen (920, N = 31–213). Masked-cell reconstruction, 15 % of upper-
-triangle cells hidden per graph, `edge_index` rebuilt from the observed graph only. One seed.
+Data: `ogbg-molhiv`, 41,123 graphs (N = 4–222) with 3-dim bond features. **Trained only on N ≤ 30**
+(25,589 graphs); held-out graphs scored at sizes seen (3,193) and never seen (920, N = 31–213).
+Masked-cell reconstruction, 15 % of upper-triangle cells hidden per graph, `edge_index` rebuilt from
+the observed graph only.
 
-## Gate 8.2 results
+## Result
 
-| arm (params identical) | seen sizes N ≤ 30 | unseen sizes N 31–213 |
+| arm | params | seen N ≤ 30 | | unseen N 31–213 | |
+|---|---|---|---|---|---|
+| | | **AUROC** | **AP** | **AUROC** | **AP** |
+| **LGM** | 3,229,728 | **0.9307** | **0.6342** | **0.9267** | **0.4639** |
+| GCN, capacity-matched | 3,238,400 | 0.8657 | 0.4302 | 0.8569 | 0.2724 |
+| LGM, no edge states | 3,229,728 | 0.7948 | 0.2820 | 0.7927 | 0.1424 |
+| negated degree (best prior) | — | 0.7697 | 0.2289 | 0.7705 | 0.1133 |
+| common neighbours | — | 0.4426 | 0.1012 | 0.4757 | 0.0457 |
+| random | — | 0.5010 | 0.1020 | 0.4862 | 0.0436 |
+
+| paired | seen | unseen |
 |---|---|---|
-| **LGM** | **0.9338** AUROC / 0.6438 AP | **0.9280** AUROC / 0.4738 AP |
-| no-edge control | 0.8065 / 0.3069 | 0.8033 / 0.1637 |
-| **edge channel** | **+0.1273** AUROC / +0.3369 AP | **+0.1247** AUROC / +0.3101 AP |
-| negated degree (best prior) | 0.7697 / 0.2289 | 0.7705 / 0.1133 |
-| common neighbours | 0.4426 | 0.4757 |
-| preferential attachment | 0.2303 | 0.2295 |
-| random | 0.5010 | 0.4862 |
+| LGM − GCN | **+0.0650** AUROC / +0.2040 AP | **+0.0698** AUROC / +0.1915 AP |
+| LGM − no-edge | +0.1359 / +0.3521 | +0.1340 / +0.3215 |
 
-Across unseen-size quartiles the LGM holds 0.9362 / 0.9321 / 0.9090 / 0.9168 (last bucket N 70–213,
-7× the training cap). The control is equally flat at 0.810 / 0.807 / 0.793 / 0.810 — **size
-transfer is a property of the architecture, not of the edge channel**; the edge channel supplies the
-accuracy, and the two effects are independent.
+Across unseen-size quartiles the LGM holds 0.9352 / 0.9304 / 0.9061 / 0.9175 (last bucket N 70–213,
+7× the training cap); the GCN holds 0.8652 / 0.8646 / 0.8478 / 0.8513. **Size transfer is a property
+of both size-independent architectures**, not of the LGM specifically — the gap between them is
+accuracy, not transfer.
 
-**Two baselines run backwards on molecules**, and were declared as their own arms before the run
-rather than sign-flipped afterwards. Common neighbours scores 0.44 because atoms sharing a neighbour
-sit at ring or bond-angle distance and are exactly the pairs *not* bonded; preferential attachment
-scores 0.23 because a high-degree atom is valence-saturated. Negated degree at 0.77 is therefore the
-real bar, and a much harder one than common neighbours would have been.
+The GCN is given the LGM's full structural node featuriser rather than a bare scalar, and its width
+(800) is chosen to match the LGM's parameter count to within 0.3 %. Both choices work against the
+LGM deliberately; a handicapped baseline would have flattered it.
 
-## Gates 8.0 / 8.1 — the invariants, and three traps avoided
+**Two baselines run backwards on molecules** and were declared as their own arms before the run
+rather than sign-flipped afterwards: common neighbours 0.44 (atoms sharing a neighbour sit at ring
+or bond-angle distance and are exactly the pairs *not* bonded) and preferential attachment 0.23
+(a high-degree atom is valence-saturated). Negated degree at 0.77 is the real non-learned bar.
 
-- **Automorphism invariance is asserted over *pair* orbits.** Node-orbit equivalence proves nothing
-  about pairs: Petersen is vertex-transitive, yet (0,1) is an edge and (0,2) is not, and its 45
-  pairs form exactly two orbits (15/30).
-- **Petersen cannot carry the assertion.** On a vertex-transitive graph the theorem forces every
-  node state equal, and with a node-state-only decoder the entire score matrix collapses to one
-  constant (measured spread 1.8e-15 in float64) — a broken constant-output model passes identically.
-  P₆ and K₂,₃ carry it; Petersen is a separate, labelled *collapse* test.
-- **No metric is asserted.** `roc_auc_score` returns **0.5533** in fp32 on a provably constant score
-  matrix: orbit-equivalent nodes sit at different memory offsets, their reductions run in a different
-  order, and float non-associativity leaves a residual that is never exactly zero — and AUROC swings
-  across its full range on ulp ties.
-- **Size independence is behavioural**: `strict=True` load of one `state_dict` into a
-  differently-seeded model, run at `N ∈ {7, 23, 101, d_model}` on Erdős–Rényi probes, `state_dict`
-  shape map compared before and after every forward, gradient-receiving parameter set required to
-  match. A shape scan for "no dimension equals N" was rejected — it flags every `[d,d]` tensor the
-  moment a probe has `N = d_model`.
-- **Batching is masking, not padding**: a batch of 12/25/40 reproduces three single-graph runs;
-  perturbing one graph moves the others by 8.3e-17 against its own 6.6e-01.
+## Correction to the earlier reading of the no-edge control
 
-One design consequence worth recording: there is **no src/dst role tag anywhere**. A node
-permutation can flip which endpoint is `min` in the canonical edge key, so anything distinguishing
-an edge's two endpoints breaks equivariance — edge←node must score both slots with the same
-projection.
+The previous write-up called the no-edge gap "what the first-class edge channel is worth". That
+conflated two things and overstated the claim. **node←edge attention is the only path by which
+graph structure reaches node states** — node←node is dense content-based attention over all nodes,
+carrying no structure, and the node featuriser supplies only degree. So deleting edge states does
+not remove *edge values*; it removes **all structural information except degree**, which is exactly
+why that arm lands at 0.7948 against the degree prior's 0.7697.
 
-## What this shows
+The +0.134 is therefore structure-plus-edge-values combined, not edge values alone. Isolating edge
+values needs an arm with edge states but constant (all-ones) values — a deferred ablation.
+**The +0.065 / +0.070 over the GCN is the defensible number**: both arms have full structural
+access and matched capacity, so it isolates the body.
 
-- **The first architecture in this project that transfers across graphs.** Phases 4–7 ran
-  `gnn_direct`, whose `GCNConv(N → d)` first weight is one column per node index (57 % of the Cora
-  model's parameters, 79 % of Photo's). It cannot be evaluated at a different N at all. This one
-  runs unchanged from N = 4 to N = 213.
-- **Edges as first-class `[M,d]` states are load-bearing.** The control is the same model with the
-  edge states emptied at run time — same shapes, same parameter count — and it loses 0.125 AUROC and
-  two thirds of its AP. An architecture that had compressed edges into a dense `[N,N]` attention
-  bias would plausibly have landed near the control.
+## Gate 8.0 / 8.1 and the decoder
+
+Equivariance is asserted over **pair** orbits on multi-orbit graphs (P₆, K₂,₃), never on Petersen —
+vertex-transitive graphs force every node state equal and collapse the score matrix to a constant, so
+a broken model passes identically. No metric is asserted: `roc_auc_score` returns 0.5533 in fp32 on a
+provably constant matrix, because float non-associativity leaves an ulp-scale residual between
+orbit-equivalent nodes and AUROC swings across its full range on ties. Size independence is
+behavioural (strict `state_dict` load into a differently-seeded model, run at
+`N ∈ {7, 23, 101, d_model}`), not a parameter-shape scan.
+
+The decoder is now `Z Ws Zᵀ` with `Ws = (W + Wᵀ)/2`. `W` is symmetric only at its `0.1·I` init and
+training supervises the strict upper triangle only, so its antisymmetric half was near-unconstrained
+while the Phase-8 path scored upper-triangle cells directly without the `(L + Lᵀ)/2` the older
+phases' metrics applied. Symmetrising `W` equals symmetrising the output, so Phases 1–7 numbers are
+unaffected. 40 tests green, locally and on the cluster build.
 
 ## What this does not show
 
-- **Molecules are the friendliest possible domain for this.** Bonds are valence-constrained and
-  degree alone reaches 0.77. Nothing here predicts the number on a citation or interaction graph.
-- **The edge advantage may not survive leaving molecules.** It rests on real 3-dim bond features.
-  Cora, Amazon Photo, ogbl-ddi, PPT-Ohmnet and the binarised TCGA graphs all have `k = 1` and
-  all-ones edge values, where the edge channel would carry only endpoint degrees. **The result is
-  currently not reproducible on any other dataset in this repo.**
-- **The bar cleared is low.** "Beats a degree heuristic" is not "beats GCN". There is no GCN, GAE or
-  MaskGAE comparison yet — those are in the deferred grid, and a regression against Phase 5's
-  fixed-N numbers on Cora/Photo is *expected* (pre-registered in `docs/PLAN-PHASE8.md` §7).
-- **One seed, no variance estimate.** And the default arm is 1-WL bounded with a proven automorphism
-  ceiling that has never been measured on a real graph.
-- The LGM ran the full 40 epochs with validation still rising (0.9330 at the cap), so it is
-  **undertrained** — the number is a floor, but the epoch cap was not selected on anything.
+- **One seed, no variance estimate.** Deferred.
+- **Molecules are the friendliest domain**: bonds are valence-constrained and degree alone reaches
+  0.77. Nothing here predicts the number on a citation or interaction graph.
+- **The edge-value advantage is untested off molecules.** It rests on real 3-dim bond features;
+  Cora, Photo, ogbl-ddi, PPT-Ohmnet and the binarised TCGA graphs all have `k = 1` and all-ones
+  edge values. Not reproducible on any other dataset in this repo as they stand.
+- **The LGM hit the 40-epoch cap with validation still rising** (0.9330), so it is undertrained and
+  the number is a floor. The GCN also ran to the cap; the no-edge arm early-stopped at 27.
+- Featureless GAE/VGAE/MaskGAE are **structurally disqualified** from this comparison: they use
+  `X = I`, a per-node identity table, which cannot run at an unseen N at all.
+- The default arm is 1-WL bounded with a proven automorphism ceiling, never measured on a real graph.
 
 ## Gate 8
 
-- [x] 8.0 permutation equivariance, pair-orbit invariance, behavioural size independence
+- [x] 8.0 equivariance, pair-orbit invariance, behavioural size independence
 - [x] 8.1 no-padding batch equivalence and cross-graph leakage
-- [x] 8.2 one checkpoint transfers to unseen sizes (0.9280 at N 31–213) and beats every non-learned
-      prior; edge channel worth +0.125 AUROC at identical parameters
+- [x] 8.2 one checkpoint transfers to unseen sizes; LGM beats the capacity-matched GCN and every
+      non-learned prior on both splits
 - [ ] VALIDATED line — user
 
 VALIDATED ____
