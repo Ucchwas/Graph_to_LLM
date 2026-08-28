@@ -73,6 +73,12 @@ commit, so a timed-out job is completed by resubmitting the same script. ≈ 4�
 Before submission: `pytest tests/`, the 4-stage CPU smoke on 12 layers, the OhmNet mechanics
 check (shared loop over six aligned tissue layers on the laptop CPU).
 
+**Later supporting experiment, documented but not run (2026-08-28):** a scaling curve — the
+shared model trained on 50 / 100 / 200 / 400 / 770 train layers, scored on the same held-out
+layers. It is the missing test of whether "more graphs" has any slope once the low-data
+regularisation effect (§ the correction in `results/phase6/RESULTS.md`) is accounted for.
+≈ 1.5 GPU-h, one config knob, no new code. Deferred in favour of Phase 7.
+
 ## 7. Gate 6
 
 - [ ] all rows at one commit; identity 0.5 on every layer

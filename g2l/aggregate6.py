@@ -67,6 +67,35 @@ def mean_se(v):
     return (v.mean(), v.std(ddof=1) / np.sqrt(len(v)) if len(v) > 1 else float("nan"), len(v)) if len(v) else (np.nan, np.nan, 0)
 
 
+def gain_vs_size(by, group="test") -> list[str]:
+    """Where the shared arm's advantage lives: the paired delta against the per-layer models,
+    split by how much training data the layer itself has. A negative correlation means the gain
+    is a low-data effect (multi-task regularisation) rather than transfer that holds everywhere."""
+    s, i = by.get((group, "shared"), {}), by.get((group, "independent"), {})
+    common = sorted(set(s) & set(i), key=lambda l: s[l]["n_train"])
+    if len(common) < 8:
+        return []
+    n = np.array([s[l]["n_train"] for l in common])
+    d = np.array([s[l]["auc"] - i[l]["auc"] for l in common])
+    out = [f"## Where the gain lives ({group} layers, n = {len(common)})", "",
+           f"corr(log layer train size, shared - independent AUROC) = **{np.corrcoef(np.log(n), d)[0, 1]:+.3f}**", "",
+           "| quartile by layer size | train pairs | shared | independent | delta |", "|---|---|---|---|---|"]
+    for k, idx in enumerate(np.array_split(np.arange(len(common)), 4)):
+        ls = [common[x] for x in idx]
+        out.append(f"| {k + 1} | {n[idx].min()}-{n[idx].max()} | {np.mean([s[l]['auc'] for l in ls]):.4f} | "
+                   f"{np.mean([i[l]['auc'] for l in ls]):.4f} | {d[idx].mean():+.4f} |")
+    out += ["", f"delta spread: min {d.min():+.4f}, median {np.median(d):+.4f}, max {d.max():+.4f}; "
+                f"**shared is worse on {int((d <= 0).sum())} / {len(d)} layers**", ""]
+    cn = by.get((group, "common_neighbors"), {})
+    if cn:
+        for key, label in (("auc", "test pairs"), ("auc_hidden", "hidden pairs")):
+            dc = np.array([s[l][key] - cn[l][key] for l in common])
+            out.append(f"- shared - common neighbours on {label}: {dc.mean():+.4f} +- "
+                       f"{dc.std(ddof=1) / np.sqrt(len(dc)):.4f} (shared better on {int((dc > 0).sum())}/{len(dc)})")
+        out.append("")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rows", default="results/phase6/rows")
@@ -120,6 +149,7 @@ def main():
             ma, sa, _ = mean_se([r.get("ap_in" + k[6:]) for r in s.values()])
             out.append(f"| {k[6:]} | {m:.4f} +- {se:.4f} | {ma:.4f} +- {sa:.4f} |")
         out.append("")
+    out += gain_vs_size(by)
     text = "\n".join(out)
     print(text)
     pathlib.Path(args.rows).parent.joinpath("aggregate.md").write_text(text + "\n", encoding="utf-8")

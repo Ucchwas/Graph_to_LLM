@@ -65,3 +65,19 @@ paired shared - independent over 770 layers:
 | 0.5 | 0.9662 +- 0.0020 | 0.9626 +- 0.0025 |
 | 0.25 | 0.9416 +- 0.0024 | 0.9377 +- 0.0028 |
 
+## Where the gain lives (test layers, n = 97)
+
+corr(log layer train size, shared - independent AUROC) = **-0.350**
+
+| quartile by layer size | train pairs | shared | independent | delta |
+|---|---|---|---|---|
+| 1 | 391-871 | 0.9912 | 0.9782 | +0.0129 |
+| 2 | 893-1580 | 0.9864 | 0.9807 | +0.0057 |
+| 3 | 1617-2902 | 0.9746 | 0.9707 | +0.0039 |
+| 4 | 3261-6962 | 0.9551 | 0.9543 | +0.0008 |
+
+delta spread: min -0.0077, median +0.0029, max +0.0818; **shared is worse on 29 / 97 layers**
+
+- shared - common neighbours on test pairs: +0.0250 +- 0.0017 (shared better on 96/97)
+- shared - common neighbours on hidden pairs: +0.0134 +- 0.0019 (shared better on 78/97)
+
