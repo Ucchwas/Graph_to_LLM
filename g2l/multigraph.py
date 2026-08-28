@@ -114,6 +114,70 @@ def assemble(mols: list[Mol], idx: list[int], frac: float, seed: int):
 
 # ---------------------------------------------------------------- non-learned references
 
+class GCNBaseline(torch.nn.Module):
+    """The external baseline: size-independent message passing, everything else held fixed.
+
+    This is NOT part of the LGM (Phase 8 forbids a convolution before or inside it) -- it is the
+    competitor. It reuses the LGM's node featuriser, its decoder-input LayerNorm and its decoder, so
+    the only difference from the `noedge` arm is the body: GCN message passing instead of the
+    incidence transformer's dense node<-node attention.
+
+    Two deliberate choices, both stated because both could otherwise flatter the LGM.
+    (1) The node input is the LGM's full structural featuriser, not a bare scalar. A literal
+        GCN(1 -> d) would be handicapped by receiving strictly less input than the arm it is
+        compared against, and the comparison would measure the featuriser rather than the body.
+        Size independence -- the property that matters -- is identical either way.
+    (2) The width is chosen to MATCH the LGM's parameter count (see `matched_width`), because the
+        LGM's per-layer cost is far higher at equal d and an unmatched baseline would lose on
+        capacity rather than on architecture.
+
+    GCNConv cannot consume edge values, which is inherent to it. So GCN vs `noedge` isolates the
+    body at equal information, and GCN vs `lgm` additionally includes the edge channel."""
+
+    needs_graph = True
+
+    def __init__(self, d: int, layers: int = 4, k: int = 1, dropout: float = 0.0, seed: int | None = None):
+        from torch_geometric.nn import GCNConv
+
+        super().__init__()
+        if seed is not None:
+            torch.manual_seed(seed)
+        from g2l.decoders import D1Bilinear
+        from g2l.lgm import NodeEdgeProjection
+
+        self.first = NodeEdgeProjection(d, k=k)
+        self.convs = torch.nn.ModuleList([GCNConv(d, d) for _ in range(layers)])
+        self.norms = torch.nn.ModuleList([torch.nn.LayerNorm(d) for _ in range(layers)])
+        self.dec_norm = torch.nn.LayerNorm(d)
+        torch.nn.init.constant_(self.dec_norm.weight, 1 / d ** 0.5)
+        torch.nn.init.zeros_(self.dec_norm.bias)
+        self.decoder = D1Bilinear(d)
+        self.dropout = dropout
+
+    def node_states(self, g: RawGraph, z=None) -> torch.Tensor:
+        h, _, src, dst = self.first(g, z)
+        ei = torch.cat([torch.stack([src, dst]), torch.stack([dst, src])], dim=1)
+        for conv, norm in zip(self.convs, self.norms):
+            h = h + F.dropout(F.gelu(conv(norm(h), ei)), self.dropout, self.training)
+        return self.dec_norm(h)
+
+    def forward(self, g: RawGraph, z=None) -> torch.Tensor:
+        return self.decoder(self.node_states(g, z))
+
+    def pairs(self, g: RawGraph, i, j, z=None) -> torch.Tensor:
+        return self.decoder.pairs(self.node_states(g, z), i, j)
+
+
+def matched_width(target_params: int, layers: int, k: int, lo: int = 64, hi: int = 2048) -> int:
+    """Smallest GCN width (a multiple of 32) whose parameter count is nearest `target_params`."""
+    best, best_gap = lo, float("inf")
+    for d in range(lo, hi + 1, 32):
+        n = sum(p.numel() for p in GCNBaseline(d, layers, k).parameters())
+        if abs(n - target_params) < best_gap:
+            best, best_gap = d, abs(n - target_params)
+    return best
+
+
 PRIORS = ("common_neighbours", "degree", "neg_degree", "random")
 
 

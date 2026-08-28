@@ -21,7 +21,8 @@ import torch
 import yaml
 
 from g2l.lgm import LGM
-from g2l.multigraph import PRIORS, evaluate, load_mol, prior_scores, score, split, train_gate
+from g2l.multigraph import (PRIORS, GCNBaseline, evaluate, load_mol, matched_width, prior_scores,
+                            score, split, train_gate)
 
 ROWS = pathlib.Path(os.environ.get("G2L_ROWS", "results/phase8/rows"))
 RUNS = pathlib.Path(os.environ.get("G2L_RUNS", "results/runs/phase8"))
@@ -41,7 +42,7 @@ def commit_hash() -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/phase8.yaml")
-    ap.add_argument("--arm", default="lgm", choices=["lgm", "noedge"])
+    ap.add_argument("--arm", default="lgm", choices=["lgm", "noedge", "gcn"])
     ap.add_argument("--limit", type=int, default=None, help="cap the corpus (smoke runs only)")
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--seed", type=int, default=None)
@@ -64,9 +65,19 @@ def main():
           f"test seen-size {len(seen)}, unseen-size {len(unseen)} "
           f"(N {min((m.n for m in unseen), default=0)}-{max((m.n for m in unseen), default=0)})", flush=True)
 
-    model = LGM(d=cfg["d"], layers=cfg["layers"], heads=cfg["heads"], k=cfg["k"],
-                dropout=cfg["dropout"], edges=(args.arm == "lgm"), seed=seed)
-    print(f"arm={args.arm} device={device} params={sum(p.numel() for p in model.parameters())}", flush=True)
+    ref = sum(p.numel() for p in LGM(d=cfg["d"], layers=cfg["layers"], heads=cfg["heads"],
+                                     k=cfg["k"], seed=seed).parameters())
+    if args.arm == "gcn":
+        # capacity-matched to the LGM: at equal d the GCN is far smaller, and an unmatched baseline
+        # would lose on parameters rather than on architecture
+        w = matched_width(ref, cfg["layers"], cfg["k"])
+        model = GCNBaseline(w, layers=cfg["layers"], k=cfg["k"], dropout=cfg["dropout"], seed=seed)
+        print(f"gcn width {w} matched to the LGM's {ref} params", flush=True)
+    else:
+        model = LGM(d=cfg["d"], layers=cfg["layers"], heads=cfg["heads"], k=cfg["k"],
+                    dropout=cfg["dropout"], edges=(args.arm == "lgm"), seed=seed)
+    print(f"arm={args.arm} device={device} params={sum(p.numel() for p in model.parameters())} "
+          f"(lgm reference {ref})", flush=True)
     summary = train_gate(model, train, val, cfg, device, seed=seed)
 
     row = {"arm": args.arm, "seed": seed, "commit": commit_hash(), "device": device,

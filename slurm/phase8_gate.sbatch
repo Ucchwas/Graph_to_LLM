@@ -13,7 +13,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
-#SBATCH --time=03:00:00
+#SBATCH --time=01:00:00
 #SBATCH --output=/scratch/m000211-pm06/%u/logs/%x-%A_%a.out
 set -euo pipefail
 module load slurm
@@ -24,7 +24,7 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-8}
 source "$HOME/envs/g2l/bin/activate"
 cd "$HOME/Graph_to_LLM"
 python -c "import torch_geometric, sklearn, ogb, g2l.lgm, g2l.multigraph, g2l.run_phase8"
-ARMS=(lgm noedge)
+ARMS=(lgm noedge gcn)
 ARM=${ARMS[${SLURM_ARRAY_TASK_ID:-0}]}
 # The checkout is pinned for the phase and Phase-8 code is shipped by scp, so the recorded commit
 # comes from $G2L_COMMIT (exported by the submitting shell), not from the checkout's HEAD.
