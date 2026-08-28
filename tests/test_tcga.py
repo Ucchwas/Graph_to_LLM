@@ -110,3 +110,44 @@ def test_built_pairs_are_consistent():
         assert A_n.shape == A_t.shape and torch.equal(A_n, A_n.T) and torch.equal(A_t, A_t.T)
         assert A_n.sum() == A_t.sum() and A_n.diagonal().sum() == 0
         assert 0.0 < jaccard(A_n, A_t) < 1.0
+
+
+@pytest.mark.parametrize("mode", ["full", "weighted", "stratified"])
+def test_loss_modes_are_finite_and_differ(mode):
+    from g2l.translate import translation_loss, upper
+    A_n = binarise(spearman(synthetic(0)), 0.1)
+    A_t = binarise(spearman(synthetic(1)), 0.1)
+    logits = torch.randn(G, G, requires_grad=True)
+    iu = upper(G)
+    pw = torch.tensor(3.0)
+    loss = translation_loss(logits, A_t, iu, pw, A_n=A_n, mode=mode, changed_weight=10.0)
+    assert torch.isfinite(loss) and loss.item() > 0
+    loss.backward()
+    assert torch.isfinite(logits.grad).all() and logits.grad.abs().sum() > 0
+
+
+def test_stratified_loss_ignores_a_constant_copy_of_the_input():
+    """Within an A_n stratum the input is constant, so predicting the input carries no gradient
+    advantage -- the property that removes the copying incentive."""
+    from g2l.translate import translation_loss, upper
+    A_n = binarise(spearman(synthetic(0)), 0.1)
+    A_t = binarise(spearman(synthetic(1)), 0.1)
+    iu, pw = upper(G), torch.tensor(1.0)
+    base = torch.zeros(G, G)
+    copy = 5.0 * (2 * A_n - 1)  # a confident copy of the input
+    l_base = translation_loss(base, A_t, iu, pw, A_n=A_n, mode="stratified")
+    l_copy = translation_loss(copy, A_t, iu, pw, A_n=A_n, mode="stratified")
+    l_base_full = translation_loss(base, A_t, iu, pw, A_n=A_n, mode="full")
+    l_copy_full = translation_loss(copy, A_t, iu, pw, A_n=A_n, mode="full")
+    assert l_copy > l_base, "stratified must not reward copying"
+    assert l_copy_full < l_base_full, "the full objective does reward copying (the measured failure)"
+
+
+def test_fit_lambda_selects_on_training_cancers_only():
+    from g2l.translate import fit_lambda, linear_prior
+    N = [binarise(spearman(synthetic(k)), 0.1) for k in range(4)]
+    T = [binarise(spearman(synthetic(k + 10)), 0.1) for k in range(4)]
+    lam = fit_lambda(N, T)
+    assert lam in (0.0, -0.1, -0.2, -0.3, -0.4, -0.6, -1.0)
+    s = linear_prior(N, T, N[0], lam)
+    assert s.shape == (G, G) and torch.isfinite(s).all()

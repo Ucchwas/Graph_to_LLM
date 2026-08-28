@@ -26,7 +26,7 @@ from g2l.translate import baseline_scores, score_all, train_translation
 CONFIG = pathlib.Path("configs/phase7.yaml")
 ROWS = pathlib.Path(os.environ.get("G2L_ROWS", "results/phase7/rows"))
 RUNS = pathlib.Path(os.environ.get("G2L_RUNS", "results/runs/phase7"))
-BASELINES = ("identity", "mean_tumour", "mean_change", "common_neighbors")
+BASELINES = ("identity", "mean_tumour", "mean_change", "common_neighbors", "linear_prior")
 
 
 def commit_hash() -> str:
@@ -150,24 +150,26 @@ def run_baselines(cfg: dict, density: float):
                   f"(gained {row['auc_gained']:.4f} lost {row['auc_lost']:.4f}) dir {row['auc_direction']:.4f}", flush=True)
 
 
-def run_translate(cfg: dict, density: float, index: int, device: str, epochs=None):
+def run_translate(cfg: dict, density: float, index: int, device: str, epochs=None, loss_mode="full"):
     o = torch.load(pairs_path(density))
     fold = folds(o["cancers"])[index]
     test, val, train = fold
     commit = commit_hash()
-    key = f"{test.replace(' ', '_')}_shared_rho{density}"
+    arm = "shared" if loss_mode == "full" else f"shared_{loss_mode}"
+    key = f"{test.replace(' ', '_')}_{arm}_rho{density}"
     print(f"fold {index}: test={test} val={val} train={len(train)} cancers @ {commit[:8]}", flush=True)
     N = len(o["genes"])
     model = build_model("gnn_direct", N, cfg["width"], 1.0, scratch_layers=cfg["layers"], seed=cfg["seed"], kind=cfg["kind"])
     tcfg = {**{k: cfg[k] for k in ("lr", "lr_norm", "weight_decay", "warmup", "patience")},
-            "max_epochs": epochs or cfg["max_epochs"]}
+            "max_epochs": epochs or cfg["max_epochs"], "loss_mode": loss_mode,
+            "changed_weight": cfg.get("changed_weight", 10.0)}
     summary = train_translation(model, o, train, [val], tcfg, device, cfg["seed"])
     A_n, A_t = o["normal"][test].to(device), o["tumour"][test].to(device)
     model.eval()
     with torch.no_grad():
         row = score_all(model(A_n).cpu(), A_n.cpu(), A_t.cpu(), seed=cfg["seed"])
-    row.update(summary, cancer=test, arm="shared", density=density, commit=commit, key=key,
-               val_cancer=val, n_train_cancers=len(train), n_genes=N)
+    row.update(summary, cancer=test, arm=arm, loss_mode=loss_mode, density=density, commit=commit,
+               key=key, val_cancer=val, n_train_cancers=len(train), n_genes=N)
     write_row(row, key)
     if not epochs:
         RUNS.mkdir(parents=True, exist_ok=True)
@@ -184,6 +186,7 @@ def main():
     ap.add_argument("--index", type=int, default=None)
     ap.add_argument("--density", type=float, default=None)
     ap.add_argument("--epochs", type=int, default=None)
+    ap.add_argument("--loss", default=None, help="one loss mode; default: every mode in the config")
     ap.add_argument("--cpu", action="store_true")
     args = ap.parse_args()
     cfg = yaml.safe_load(pathlib.Path(args.config).read_text())
@@ -198,15 +201,17 @@ def main():
             run_baselines(cfg, d)
         return
     idx = args.index if args.index is not None else int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
+    modes = [args.loss] if args.loss else cfg.get("loss_modes", ["full"])
     failed = []
-    for d in densities:
-        try:
-            run_translate(cfg, d, idx, device, args.epochs)
-        except Exception:
-            traceback.print_exc()
-            failed.append(f"fold{idx}_rho{d}")
-        if device == "cuda":
-            torch.cuda.empty_cache()
+    for mode in modes:
+        for d in densities:
+            try:
+                run_translate(cfg, d, idx, device, args.epochs, loss_mode=mode)
+            except Exception:
+                traceback.print_exc()
+                failed.append(f"fold{idx}_rho{d}_{mode}")
+            if device == "cuda":
+                torch.cuda.empty_cache()
     if failed:
         raise SystemExit(f"{len(failed)} run(s) failed: {failed}")
 

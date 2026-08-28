@@ -13,7 +13,8 @@ import numpy as np
 
 from g2l.aggregate6 import mean_se, ttest_1samp
 
-ARMS = ["shared", "mean_change", "mean_tumour", "common_neighbors", "identity"]
+ARMS = ["shared_stratified", "shared_weighted", "shared", "linear_prior", "mean_tumour",
+        "mean_change", "common_neighbors", "identity"]
 METRICS = [("auc_changed", "changed-edge AUROC"), ("auc_gained", "gained"), ("auc_lost", "lost"),
            ("auc_direction", "direction"), ("auc", "overall AUROC"), ("ap_balanced", "overall AP@1:1")]
 
@@ -60,8 +61,8 @@ def main():
                 cells.append(f"{m:.4f} +- {se:.4f}" if n > 1 else (f"{m:.4f}" if n else "-"))
             out.append(f"| {arm} | {len(d)} | " + " | ".join(cells) + " |")
         out.append("")
-        s = by.get((density, "shared"), {})
-        for arm in ARMS[1:]:
+        s = by.get((density, "shared_stratified"), {}) or by.get((density, "shared"), {})
+        for arm in [a for a in ARMS if a not in ("shared_stratified",)]:
             b = by.get((density, arm), {})
             common = sorted(set(s) & set(b))
             if len(common) < 3:
@@ -76,7 +77,7 @@ def main():
             if line:
                 out.append(f"- paired shared - {arm} over {len(common)} cancers: " + "; ".join(line))
         out.append("")
-    per = by.get((0.01, "shared"), {})
+    per = by.get((0.01, "shared_stratified"), {}) or by.get((0.01, "shared"), {})
     if per:
         out += ["## Per-cancer detail, main protocol (shared model)", "",
                 "| held-out cancer | changed AUROC | gained | lost | direction | overall AUROC | edges | gained/lost cells |",

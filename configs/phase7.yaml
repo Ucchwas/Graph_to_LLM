@@ -20,3 +20,7 @@ weight_decay: 0.01
 warmup: 100
 max_epochs: 300
 patience: 30
+# Phase 7B: the MVP's `full` objective is dominated by the ~99 % of cells that do not change, so it
+# rewards copying the input (measured direction 0.393, below chance). These two target the rewiring.
+loss_modes: [stratified, weighted]
+changed_weight: 10.0

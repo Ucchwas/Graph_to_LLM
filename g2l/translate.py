@@ -101,11 +101,60 @@ def common_neighbours(A_n: torch.Tensor) -> torch.Tensor:
     return A_n @ A_n
 
 
+LAMBDAS = (0.0, -0.1, -0.2, -0.3, -0.4, -0.6, -1.0)
+
+
+def linear_prior(train_normal, train_tumour, A_n: torch.Tensor, lam: float) -> torch.Tensor:
+    """`mean_tumour + lam * (A_n - mean_normal)`. The diagnostic that motivated Phase 7B: a
+    *negative* lam beats the mean-tumour prior at every density, i.e. edges specific to this
+    cancer's normal graph are preferentially absent from its tumour graph. Two parameters."""
+    mT = torch.stack(train_tumour).mean(0)
+    mN = torch.stack(train_normal).mean(0)
+    return mT + lam * (A_n - mN)
+
+
+def _changed_auc_subsampled(scores, A_n, A_t, cells) -> float:
+    """Mean of the gained / lost AUROCs on a fixed subsample of upper-triangle cells. Used only to
+    pick lam, where the objective is a flat plateau -- the reported metrics always use every cell."""
+    i, j = cells
+    s = scores[i, j].float().cpu().numpy()
+    n = A_n[i, j].cpu().numpy().astype(bool)
+    t = A_t[i, j].cpu().numpy().astype(bool)
+    return float(np.nanmean([_auc_ap(t[m].astype(int), s[m])[0] for m in (~n, n)]))
+
+
+def fit_lambda(train_normal, train_tumour, n_cells: int = 200_000, seed: int = 0) -> float:
+    """Choose lam on the TRAINING cancers only (leave-one-out inside the training set), so the
+    held-out cancer never informs the baseline it is scored against."""
+    N = train_normal[0].shape[0]
+    iu = upper(N)
+    g = torch.Generator().manual_seed(seed)
+    pick = torch.randperm(iu.shape[1], generator=g)[:min(n_cells, iu.shape[1])]
+    cells = (iu[0][pick], iu[1][pick])
+    sumN = torch.stack(train_normal).sum(0)
+    sumT = torch.stack(train_tumour).sum(0)
+    k = len(train_normal)
+    best, best_lam = -np.inf, 0.0
+    for lam in LAMBDAS:
+        v = []
+        for x in range(k):
+            mN = (sumN - train_normal[x]) / (k - 1)
+            mT = (sumT - train_tumour[x]) / (k - 1)
+            v.append(_changed_auc_subsampled(mT + lam * (train_normal[x] - mN),
+                                             train_normal[x], train_tumour[x], cells))
+        m = float(np.nanmean(v))
+        if m > best:
+            best, best_lam = m, lam
+    return best_lam
+
+
 def baseline_scores(name: str, A_n, train_normal, train_tumour) -> torch.Tensor:
     return {"identity": lambda: identity_baseline(A_n),
             "mean_tumour": lambda: mean_tumour(train_tumour),
             "mean_change": lambda: mean_change(train_normal, train_tumour, A_n),
-            "common_neighbors": lambda: common_neighbours(A_n)}[name]()
+            "common_neighbors": lambda: common_neighbours(A_n),
+            "linear_prior": lambda: linear_prior(train_normal, train_tumour, A_n,
+                                                 fit_lambda(train_normal, train_tumour))}[name]()
 
 
 # ---------------------------------------------------------------- training
@@ -117,11 +166,38 @@ def pos_weight_of(A_t: torch.Tensor) -> float:
     return (y.numel() - pos) / max(pos, 1)
 
 
-def translation_loss(logits: torch.Tensor, A_t: torch.Tensor, iu: torch.Tensor, pw: torch.Tensor) -> torch.Tensor:
-    """Pos-weighted BCE over every strict-upper-triangle cell of the target. No masking: the
-    target is a different matrix from the input, so there is no copy shortcut to suppress --
-    copying is exactly what the identity baseline measures."""
-    return F.binary_cross_entropy_with_logits(logits[iu[0], iu[1]], A_t[iu[0], iu[1]], pos_weight=pw)
+def translation_loss(logits: torch.Tensor, A_t: torch.Tensor, iu: torch.Tensor, pw: torch.Tensor,
+                     A_n: torch.Tensor | None = None, mode: str = "full", changed_weight: float = 10.0) -> torch.Tensor:
+    """Pos-weighted BCE over the strict upper triangle of the target.
+
+    `full` (Phase 7 MVP): every cell weighted equally. ~99 % of cells do not change between
+    conditions and copying the input is right for those, so this objective rewards copying -- the
+    measured failure (direction 0.393, below chance).
+    `weighted`: cells that flip are upweighted by `changed_weight`, so training pays attention to
+    what the headline metric scores.
+    `stratified`: one pos-weighted BCE per input stratum (A_n = 0 and A_n = 1), the two weighted
+    equally. Within a stratum the input is constant, so copying carries no gradient at all -- this
+    is the objective that matches the gained / lost metrics exactly.
+    """
+    y, s = A_t[iu[0], iu[1]], logits[iu[0], iu[1]]
+    if mode == "full":
+        return F.binary_cross_entropy_with_logits(s, y, pos_weight=pw)
+    n = A_n[iu[0], iu[1]]
+    if mode == "weighted":
+        w = torch.where(n != y, changed_weight, 1.0)
+        return F.binary_cross_entropy_with_logits(s, y, weight=w, pos_weight=pw)
+    if mode == "stratified":
+        loss = 0.0
+        for v in (0.0, 1.0):
+            m = n == v
+            if not m.any():
+                continue
+            yv = y[m]
+            pos = yv.sum()
+            w = ((yv.numel() - pos) / pos.clamp(min=1)).detach()
+            loss = loss + F.binary_cross_entropy_with_logits(s[m], yv, pos_weight=w)
+        return loss / 2
+    raise ValueError(mode)
 
 
 @torch.no_grad()
@@ -157,7 +233,8 @@ def train_translation(model, pairs, train_cancers, val_cancers, cfg, device, see
             c = train_cancers[k]
             A_n, A_t = data[c]
             opt.zero_grad(set_to_none=True)
-            loss = translation_loss(model(A_n), A_t, iu, pw[c])
+            loss = translation_loss(model(A_n), A_t, iu, pw[c], A_n=A_n, mode=cfg.get("loss_mode", "full"),
+                                    changed_weight=cfg.get("changed_weight", 10.0))
             loss.backward()
             if epoch == 0 and not tot:
                 missing = [n for n, p in trainable.items() if p.grad is None]
