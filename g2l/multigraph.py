@@ -168,11 +168,93 @@ class GCNBaseline(torch.nn.Module):
         return self.decoder.pairs(self.node_states(g, z), i, j)
 
 
-def matched_width(target_params: int, layers: int, k: int, lo: int = 64, hi: int = 2048) -> int:
-    """Smallest GCN width (a multiple of 32) whose parameter count is nearest `target_params`."""
+class EdgeGCNLayer(torch.nn.Module):
+    """One OGB-style edge-aware GCN layer: the bond attributes enter every neighbour message.
+
+    Reproduces the convolution from OGB's `examples/graphproppred/mol/conv.py` (that file ships in
+    the examples repo, not the pip package, so it could not be diffed against source here):
+
+        x        = W h
+        m_(j->i) = norm_ij * relu(x_j + e_ij)          norm_ij = (deg_i deg_j)^-1/2, deg = indeg + 1
+        h'_i     = sum_j m_(j->i) + relu(x_i + root) / deg_i
+
+    Written with plain scatter ops rather than MessagePassing so the arithmetic is inspectable.
+    `e_ij` is the shared edge state re-projected per layer, which is the counterpart of OGB giving
+    each layer its own BondEncoder."""
+
+    def __init__(self, d: int):
+        super().__init__()
+        self.linear = torch.nn.Linear(d, d)
+        self.edge_proj = torch.nn.Linear(d, d)
+        self.root = torch.nn.Parameter(torch.zeros(d))
+
+    def forward(self, h, e_dir, src, dst, n):
+        x = self.linear(h)
+        e = self.edge_proj(e_dir)
+        deg = torch.zeros(n, device=h.device, dtype=h.dtype).index_add_(
+            0, dst, torch.ones(dst.numel(), device=h.device, dtype=h.dtype)) + 1.0
+        dis = deg.pow(-0.5)
+        msg = (dis[src] * dis[dst]).unsqueeze(-1) * F.relu(x[src] + e)
+        out = torch.zeros_like(x).index_add_(0, dst, msg)
+        return out + F.relu(x + self.root) / deg.unsqueeze(-1)
+
+
+class EdgeGCNBaseline(torch.nn.Module):
+    """The fair baseline: message passing that CAN see the bond attributes.
+
+    The previous `GCNBaseline` was fairly configured but structurally unable to consume edge values,
+    so its gap to the LGM confounded architecture with edge access. This arm removes that single
+    unfairness and changes nothing else: identical node featuriser, identical edge encoder
+    (`NodeEdgeProjection`), identical decoder-input LayerNorm and decoder, identical residual /
+    pre-norm wrapper. Only the body differs -- edge-augmented message passing instead of incidence
+    attention."""
+
+    needs_graph = True
+
+    def __init__(self, d: int, layers: int = 4, k: int = 1, dropout: float = 0.0, seed: int | None = None):
+        super().__init__()
+        if seed is not None:
+            torch.manual_seed(seed)
+        from g2l.decoders import D1Bilinear
+        from g2l.lgm import NodeEdgeProjection
+
+        self.first = NodeEdgeProjection(d, k=k)
+        self.convs = torch.nn.ModuleList([EdgeGCNLayer(d) for _ in range(layers)])
+        self.norms = torch.nn.ModuleList([torch.nn.LayerNorm(d) for _ in range(layers)])
+        self.dec_norm = torch.nn.LayerNorm(d)
+        torch.nn.init.constant_(self.dec_norm.weight, 1 / d ** 0.5)
+        torch.nn.init.zeros_(self.dec_norm.bias)
+        self.decoder = D1Bilinear(d)
+        self.dropout = dropout
+
+    def node_states(self, g: RawGraph, z=None) -> torch.Tensor:
+        h, e, src, dst = self.first(g, z)
+        # both directions of every undirected edge carry the same edge state
+        s = torch.cat([src, dst])
+        t = torch.cat([dst, src])
+        e_dir = torch.cat([e, e])
+        for conv, norm in zip(self.convs, self.norms):
+            h = h + F.dropout(F.gelu(conv(norm(h), e_dir, s, t, g.n)), self.dropout, self.training)
+        return self.dec_norm(h)
+
+    def forward(self, g: RawGraph, z=None) -> torch.Tensor:
+        return self.decoder(self.node_states(g, z))
+
+    def pairs(self, g: RawGraph, i, j, z=None) -> torch.Tensor:
+        return self.decoder.pairs(self.node_states(g, z), i, j)
+
+
+BODIES = {"gcn": GCNBaseline, "edgegcn": EdgeGCNBaseline}
+
+
+def matched_width(target_params: int, layers: int, k: int, kind: str = "gcn",
+                  lo: int = 64, hi: int = 2048) -> int:
+    """Width whose parameter count is nearest `target_params` (step 8; the convolutional bodies have
+    no attention-head divisibility constraint, so a finer grid gives a tighter match)."""
+    cls = BODIES[kind]
     best, best_gap = lo, float("inf")
-    for d in range(lo, hi + 1, 32):
-        n = sum(p.numel() for p in GCNBaseline(d, layers, k).parameters())
+    for d in range(lo, hi + 1, 8):   # step 8: the baselines have no head-divisibility constraint
+        n = sum(p.numel() for p in cls(d, layers, k).parameters())
         if abs(n - target_params) < best_gap:
             best, best_gap = d, abs(n - target_params)
     return best
