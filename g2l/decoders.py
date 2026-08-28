@@ -7,15 +7,22 @@ from torch.utils.checkpoint import checkpoint
 class D1Bilinear(nn.Module):
     """logits = Z W Z^T with W = 0.1 I at init (the Phase-1 scratch decoder)."""
 
-    def __init__(self, d_model: int):
+    def __init__(self, d_model: int, chunk: int = 1_048_576):
         super().__init__()
         self.W = nn.Parameter(torch.eye(d_model) * 0.1)
+        self.chunk = chunk
 
     def forward(self, Z):
         return Z @ self.W @ Z.T
 
     def pairs(self, Z, i, j):
-        return self.forward(Z)[i, j]
+        """Score an index set without materialising [N, N]. Chunked in both directions: the dense
+        route costs N^2 (234 MB per step at Photo's N=7650), while scoring every pair at once would
+        allocate [P, d] -- P = 0.15*N(N-1)/2 is 4.4M cells there, far worse than the matrix it
+        replaces. Neither is affordable; chunks of ~1M pairs are."""
+        ZW = Z @ self.W
+        return torch.cat([(ZW[i[s:s + self.chunk]] * Z[j[s:s + self.chunk]]).sum(-1)
+                          for s in range(0, i.numel(), self.chunk)])
 
 
 class D3PairMLP(nn.Module):
