@@ -10,12 +10,56 @@ import json
 import pathlib
 from collections import defaultdict
 
+import math
+
 import numpy as np
-from scipy import stats
 
 ARMS = ["shared", "independent", "gae0", "knn", "pair_frequency", "common_neighbors", "identity"]
 METRICS = [("auc", "AUROC"), ("ap", "AP@1:1"), ("auc_hidden", "AUROC hidden pairs"), ("ap_hidden", "AP hidden pairs"),
            ("auroc_sparse", "AUROC sparse"), ("ap_sparse", "AP sparse")]
+
+
+def _betacf(a, b, x, itmax=200, eps=3e-16):
+    """Continued fraction for the incomplete beta function (Lentz's method)."""
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c, d = 1.0, 1.0 - qab * x / qap
+    d = 1.0 / (d if abs(d) > 1e-300 else 1e-300)
+    h = d
+    for m in range(1, itmax + 1):
+        m2 = 2 * m
+        for num in (m * (b - m) * x / ((qam + m2) * (a + m2)),
+                    -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))):
+            d = 1.0 + num * d
+            d = 1.0 / (d if abs(d) > 1e-300 else 1e-300)
+            c = 1.0 + num / (c if abs(c) > 1e-300 else 1e-300)
+            h *= d * c
+        if abs(d * c - 1.0) < eps:
+            break
+    return h
+
+
+def betai(a, b, x):
+    """Regularized incomplete beta I_x(a, b)."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    lb = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log(1.0 - x)
+    front = math.exp(lb)
+    return front * _betacf(a, b, x) / a if x < (a + 1.0) / (a + b + 2.0) else 1.0 - math.exp(lb) * _betacf(b, a, 1.0 - x) / b
+
+
+def ttest_1samp(d):
+    """One-sample two-sided t-test on a 1-D array; returns (t, p). scipy is unavailable on the
+    laptop (an Application Control policy blocks scipy.linalg's DLL), and the aggregator must give
+    the same numbers on both machines."""
+    n = len(d)
+    se = d.std(ddof=1) / math.sqrt(n)
+    if se == 0:
+        return (float("inf") if d.mean() else 0.0), (0.0 if d.mean() else 1.0)
+    t = d.mean() / se
+    df = n - 1
+    return t, betai(df / 2.0, 0.5, df / (df + t * t))
 
 
 def mean_se(v):
@@ -59,7 +103,7 @@ def main():
             for k, name in METRICS[:4]:
                 d = np.array([s[l][k] - i[l][k] for l in common if s[l].get(k) is not None and i[l].get(k) is not None])
                 if len(d) > 1:
-                    t, p = stats.ttest_1samp(d, 0.0)
+                    t, p = ttest_1samp(d)
                     out.append(f"- {name}: delta = {d.mean():+.4f} +- {d.std(ddof=1) / np.sqrt(len(d)):.4f} (t = {t:.2f}, p = {p:.2g}, n = {len(d)}; "
                                f"shared better on {int((d > 0).sum())} / {len(d)})")
             out.append("")
