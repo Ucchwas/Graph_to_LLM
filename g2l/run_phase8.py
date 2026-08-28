@@ -28,6 +28,10 @@ RUNS = pathlib.Path(os.environ.get("G2L_RUNS", "results/runs/phase8"))
 
 
 def commit_hash() -> str:
+    """$G2L_COMMIT wins: the Marlowe checkout stays pinned for a whole phase and Phase-8 code is
+    shipped on top by scp, so `git rev-parse HEAD` there names the wrong commit for these rows."""
+    if os.environ.get("G2L_COMMIT"):
+        return os.environ["G2L_COMMIT"]
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     except Exception:

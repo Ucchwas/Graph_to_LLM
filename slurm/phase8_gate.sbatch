@@ -26,5 +26,7 @@ cd "$HOME/Graph_to_LLM"
 python -c "import torch_geometric, sklearn, ogb, g2l.lgm, g2l.multigraph, g2l.run_phase8"
 ARMS=(lgm noedge)
 ARM=${ARMS[${SLURM_ARRAY_TASK_ID:-0}]}
-echo "job ${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID} task ${SLURM_ARRAY_TASK_ID:-0} arm $ARM on $SLURMD_NODENAME | commit $(git rev-parse --short HEAD)"
+# The checkout is pinned for the phase and Phase-8 code is shipped by scp, so the recorded commit
+# comes from $G2L_COMMIT (exported by the submitting shell), not from the checkout's HEAD.
+echo "job ${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID} task ${SLURM_ARRAY_TASK_ID:-0} arm $ARM on $SLURMD_NODENAME | code commit ${G2L_COMMIT:-unset} | checkout $(git rev-parse --short HEAD)"
 python -u -m g2l.run_phase8 --arm "$ARM"
