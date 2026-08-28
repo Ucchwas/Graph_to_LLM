@@ -1,0 +1,1 @@
+{"task": "ogbg-molhiv-classification", "arm": "atom", "seed": 0, "commit": "307574942b13c0ec8cce7f3567e4f67bb87df815", "device": "cuda", "limit": null, "comparable_to_leaderboard": true, "val_rocauc": 0.7001702429943171, "test_rocauc": 0.681737770138473, "best_epoch": 19, "epochs": 40, "wallclock_s": 1112.4, "n_params": 3208993}

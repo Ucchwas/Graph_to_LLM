@@ -121,6 +121,72 @@ unaffected. 40 tests green, locally and on the cluster build.
   `X = I`, a per-node identity table, which cannot run at an unseen N at all.
 - The default arm is 1-WL bounded with a proven automorphism ceiling, never measured on a real graph.
 
+---
+
+# Phase 8C — ogbg-molhiv classification: on the one externally-calibrated task, the LGM loses clearly
+
+**The result is negative and the margin is not close.** On the official OGB scaffold split with the
+official Evaluator, `LGM-with-atom` reaches **test ROC-AUC 0.6817 / validation 0.7002**, against
+OGB's weakest standard baseline (GCN) at **0.7606 ± 0.0097 test / 0.8204 ± 0.0141 validation** —
+**−0.079 test and −0.120 validation**, with 6× the parameters. The gap is 5–8× the leaderboard's
+own seed spread, so it is not seed noise.
+
+Marlowe array **453025**, 2 tasks, 1 GPU each, 36 min total, one seed, code commit `3075749`.
+Reference numbers read from the live leaderboard (`ogb.stanford.edu/docs/leader_graphprop/`), not
+from recall.
+
+| arm | val ROC-AUC | test ROC-AUC | params | best epoch |
+|---|---|---|---|---|
+| **LGM-with-atom** (comparable) | **0.7002** | **0.6817** | 3,208,993 | 19 / 40 |
+| LGM-no-atom (**ablation**, not comparable) | 0.7076 | 0.6332 | 3,164,449 | 18 / 39 |
+| **atom − no-atom** | **−0.0074** | **+0.0485** | +44,544 | |
+
+Official OGB reference baselines, for `LGM-with-atom` only:
+
+| model | val ROC-AUC | test ROC-AUC | params |
+|---|---|---|---|
+| GCN | 0.8204 ± 0.0141 | 0.7606 ± 0.0097 | 527,701 |
+| GIN | 0.8232 ± 0.0090 | 0.7558 ± 0.0140 | 1,885,206 |
+| GCN + virtual node | 0.8384 ± 0.0091 | 0.7599 ± 0.0119 | 1,978,801 |
+| GIN + virtual node | 0.8479 ± 0.0068 | 0.7707 ± 0.0149 | 3,336,306 |
+| leaderboard top-1 | — | 0.8476 ± 0.0002 | — |
+
+## What went wrong, stated as diagnosis rather than excuse
+
+**Both arms overfit hard.** Validation peaked at epoch ~18–19 and then collapsed — the `atom` arm
+ran 0.7002 down to 0.6118–0.6568 by epoch 38, the ablation 0.7076 down to 0.5212–0.5927. The config
+(`configs/phase8c.yaml`) was written for link prediction and carries **dropout 0.0**, while OGB's
+GCN baseline uses dropout 0.5 at **527k parameters**. We ran **3.2 M parameters with no dropout** on
+33k graphs at a 3.5 % positive rate. That is a regularisation failure, and it is the most likely
+explanation for most of the gap.
+
+**So the honest statement has two halves.** As configured, our architecture substantially
+underperforms standard MPNNs on a real benchmark — that is measured, and no amount of caveat
+removes it. Whether the architecture is *inherently* weaker here is **not** established, because we
+did zero hyperparameter tuning and are visibly overfitting. Until that work is done, the finding
+stands as "we lose", not "we would lose after tuning".
+
+**The two arms are inconclusive against each other**: the ablation is *better* on validation
+(−0.0074 for atom) and worse on test (+0.0485 for atom), i.e. the sign flips between splits. With
+one seed and this much overfitting, no conclusion is available. Worth noting on its own, though,
+that atom features do not help on validation at all — a well-fit molecular model should benefit
+substantially from knowing carbon from oxygen, which is further evidence the model is not fitting
+properly rather than that atom identity is unimportant.
+
+**Also not tuned:** the 3.5 % class imbalance is handled with plain unweighted BCE (matching the
+official baselines), the head is a single linear layer on mean-pooled node states, and no virtual
+node or readout variant was tried.
+
+## What Phase 8C establishes
+
+- The Phase-8 link-prediction numbers had **no external reference**, and this supplies one. It is
+  unfavourable.
+- A strong number on a self-defined task (0.9307 / 0.9267 on our masked-cell benchmark) did **not**
+  translate into a competitive number on an established one. That is worth more than the earlier
+  result was.
+- The obvious next step, if Phase 8C is ever resumed, is regularisation and a hyperparameter sweep
+  before any claim about the architecture is made from this task. Deferred as instructed.
+
 ## Gate 8
 
 - [x] 8.0 equivariance, pair-orbit invariance, behavioural size independence
