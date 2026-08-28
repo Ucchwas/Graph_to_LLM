@@ -64,10 +64,12 @@ argument; `tests/test_decagon.py`). Every Phase-6 arm uses it.
   Shared ≈ its E2 level → structure; a drop to the prior level → pair memorisation.
 - **E4** — the shared model's completion of the test layers from 50 % / 25 % of the usual input.
 
-## 6. Runs (Marlowe, `slurm/phase6_decagon.sbatch`, array 0-8)
+## 6. Runs (Marlowe)
 
-Task 0: shared → priors → gae0 (≈ 1 h). Tasks 1–8: independent, 121 layers each (≈ 20–40 min).
-≈ 4–6 GPU-h total. Aggregation: `python -m g2l.aggregate6` → `results/phase6/aggregate.md`.
+`slurm/phase6_shared.sbatch` (one job, 10 h): shared → priors → gae0. `slurm/phase6_decagon.sbatch`
+(array 0-7, 8 h): independent, 121 layers each. Split so the long shared stage has its own
+walltime and the short chunks stay backfillable; every stage skips rows already written at the
+commit, so a timed-out job is completed by resubmitting the same script. ≈ 4–6 GPU-h total. Aggregation: `python -m g2l.aggregate6` → `results/phase6/aggregate.md`.
 Before submission: `pytest tests/`, the 4-stage CPU smoke on 12 layers, the OhmNet mechanics
 check (shared loop over six aligned tissue layers on the laptop CPU).
 
