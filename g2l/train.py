@@ -69,10 +69,12 @@ def first_batch_stats(model, A, pos):
 
 
 def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "masked",
-              shuffle_input: bool = False, train_frac: float = 1.0, log=print) -> tuple[dict, dict, torch.Tensor]:
+              shuffle_input: bool = False, train_frac: float = 1.0, log=print,
+              exclude: torch.Tensor | None = None) -> tuple[dict, dict, torch.Tensor]:
     """Returns (row, trainable state at the best epoch, test logits [N, N]).
     `train_frac` < 1 keeps a seeded fraction of the train edges (input and supervision; val
-    and test untouched) for the data-fraction sweep."""
+    and test untouched) for the data-fraction sweep. `exclude` [N, N] bool: cells never
+    supervised (Phase 6: held-out and globally hidden pairs)."""
     train, val, test = split
     N = data.num_nodes
     A_train = observed_dense(train, N)
@@ -102,7 +104,7 @@ def train_run(model, data, split, cfg: dict, device, seed: int, loss: str = "mas
         model.train()
         opt.zero_grad(set_to_none=True)
         if loss == "masked":
-            A_obs, sup = mask_matrix(A_in.cpu(), cfg["mask_frac"], seed=epoch)
+            A_obs, sup = mask_matrix(A_in.cpu(), cfg["mask_frac"], seed=epoch, exclude=exclude)
             i, j = sup.to(device).nonzero(as_tuple=True)
             step_loss = masked_loss(model.pairs(A_obs.to(device), i, j), A_train[i, j], pw)
         else:  # recon_bce: the shortcut control (supervises cells visible in the input)

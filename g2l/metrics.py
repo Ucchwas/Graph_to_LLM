@@ -66,6 +66,7 @@ def evaluate_edge_split(logits_full: torch.Tensor, split, seed: int = 0) -> dict
 
     auc/ap: the published-comparable column (test pos + the split's sampled negs).
     hits20: only when the test split carries official negatives (ogbl-ddi).
+    auc_hidden / ap_hidden: only when the test split carries globally hidden pairs (Phase 6).
     *_sparse/lift: the honest column over every scorable cell (~3.66M on Cora).
     Scores are symmetrized so direction conventions cannot matter.
     """
@@ -78,6 +79,8 @@ def evaluate_edge_split(logits_full: torch.Tensor, split, seed: int = 0) -> dict
         L[test.neg_edge_label_index[0], test.neg_edge_label_index[1]],
     )
     mask, target = sparse_eval_mask(train, val, test)
+    if hasattr(test, "exclude_mask"):  # Phase 6: globally hidden pairs are not scorable cells of this layer
+        mask &= ~test.exclude_mask
     sp = evaluate(L, target, mask, seed=seed)
     out = {
         "auc": pairs["auroc"],
@@ -90,4 +93,8 @@ def evaluate_edge_split(logits_full: torch.Tensor, split, seed: int = 0) -> dict
     if hasattr(test, "hits_neg_edge_label_index"):  # ogbl-ddi: the official negatives, Hits@20
         hn = test.hits_neg_edge_label_index
         out["hits20"] = hits_at_k(L[test.pos_edge_label_index[0], test.pos_edge_label_index[1]], L[hn[0], hn[1]])
+    if getattr(test, "hidden_pos_edge_label_index", None) is not None and test.hidden_pos_edge_label_index.numel():
+        hp, hn = test.hidden_pos_edge_label_index, test.hidden_neg_edge_label_index  # Phase 6: the pair-disjoint control
+        ph = evaluate_pairs(L[hp[0], hp[1]], L[hn[0], hn[1]])
+        out["auc_hidden"], out["ap_hidden"], out["n_hidden"] = ph["auroc"], ph["ap"], int(hp.size(1))
     return out

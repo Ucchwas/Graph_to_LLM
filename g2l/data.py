@@ -25,11 +25,13 @@ def dense_adjacency(edge_index: torch.Tensor, num_nodes: int) -> torch.Tensor:
     return A
 
 
-def mask_matrix(A: torch.Tensor, frac: float = 0.15, seed: int = 0):
+def mask_matrix(A: torch.Tensor, frac: float = 0.15, seed: int = 0, exclude: torch.Tensor | None = None):
     """Hide `frac` of the strict upper triangle. Returns (A_obs, sup_mask).
 
     sup_mask holds upper-triangle cells only (scored once per pair); the input
     A_obs has BOTH directions of every hidden pair zeroed. Diagonal excluded.
+    `exclude` [N, N] bool (Phase 6): cells that are never supervised -- held-out pairs are
+    dropped from sup_mask instead of being labelled 0 when drawn (the draw itself is unchanged).
     """
     N = A.shape[-1]
     g = torch.Generator().manual_seed(seed)
@@ -38,6 +40,8 @@ def mask_matrix(A: torch.Tensor, frac: float = 0.15, seed: int = 0):
     sup_mask = torch.zeros(N, N, dtype=torch.bool)
     sup_mask[iu[pick], ju[pick]] = True
     hidden = sup_mask | sup_mask.T
+    if exclude is not None:
+        sup_mask &= ~exclude
     return A * (~hidden).float(), sup_mask
 
 

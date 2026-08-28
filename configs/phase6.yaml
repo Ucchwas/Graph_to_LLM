@@ -1,0 +1,22 @@
+# Phase 6 -- aligned multi-layer completion on Decagon (user, 2026-08-27; docs/PLAN-PHASE6.md).
+# Architecture unchanged: raw masked adjacency rows + raw edge_index of a layer -> one shared
+# GCNConv(645 -> 1024) -> residual GCN block -> bilinear decoder. No per-layer parameters, no drug
+# table, no E1, no node features, no embeddings.
+dataset: decagon
+min_pairs: 500        # the Decagon paper's filter: 963 side-effect layers
+split_seed: 0
+tau: 0.2              # layers linked at Jaccard >= tau share a group; groups go whole to train / val / test (80/10/10)
+hidden_frac: 0.10     # global drug-pair-disjoint control: these pairs are removed from every layer's input and supervision
+seed: 0
+kind: gcn
+width: 1024
+layers: 2
+mask_frac: 0.15
+lr: 3.0e-3
+lr_norm: 1.0e-4
+weight_decay: 0.01
+warmup: 100
+shared: {max_epochs: 300, patience: 30, fracs: [0.5, 0.25]}   # epoch = one pass over the train layers; selection on val-layer completion
+independent: {max_epochs: 2000, patience: 200, chunk: 121}     # the Phase-5 recipe per layer; 963 / 8 tasks
+priors: [identity, common_neighbors, pair_frequency, knn]
+gae_groups: [test]
