@@ -121,18 +121,76 @@ well are the ones where it echoes least.
 - **Adjacent normal is not normal** (field effects), and graphs from 32–113 samples reproduce only
   ~half their edges under bootstrap.
 
-## The obvious next experiment (not run, not approved)
+---
 
-The failure is localised and testable: the objective is dominated by unchanged cells. Two cheap
-variants, same architecture, same data, ~0.5 GPU-h:
+# Phase 7B — fixing the objective, and what it revealed
 
-1. **Changed-cell-weighted loss** — upweight cells that differ between conditions, so training
-   optimises what the headline metric measures.
-2. **Residual/delta head** — predict `A_tumour − A_normal` rather than `A_tumour`, making copying
-   the zero solution instead of the easy optimum.
+Run after the MVP (job **452601**, 11 folds × 3 densities × 2 objectives = 66 runs, all
+COMPLETED, ≈ 0.4 GPU-h, commit `9e55816`). Three additions, no architecture change.
 
-Either would test whether the model *can* capture cancer-specific rewiring, or whether the
-information simply is not there in 11 aggregate graph pairs.
+## 7B.1 A stronger baseline the MVP missed
+
+Diagnostics on the built graphs showed the input carries genuine cancer-specific signal (a
+cancer's own normal graph predicts its own tumour graph better than another cancer's normal, by
+**+0.036 overall AUROC at every density**), and that the useful way to use it is **anti-copying**:
+
+`linear_prior = mean_tumour + λ·(A_normal − mean_normal)` with **negative** λ (flat plateau over
+λ ∈ [−0.1, −0.6]; λ fitted leave-one-out on training cancers only) reaches **0.8348 ± 0.0185**
+changed-edge AUROC at ρ = 0.01 — above mean-tumour's 0.8130 and above the MVP model's 0.7888.
+Edges specific to a cancer's normal graph are preferentially *absent* from its tumour graph.
+**The bar was therefore 0.835, not 0.813; the MVP write-up above understated it.**
+
+## 7B.2 The objective fix worked on the mechanism, not the outcome
+
+| arm (ρ = 0.01) | changed-edge AUROC | direction |
+|---|---|---|
+| linear_prior | **0.8348 ± 0.0185** | **0.9424** |
+| mean_tumour | 0.8130 ± 0.0201 | 0.6672 |
+| shared_weighted | 0.7939 ± 0.0209 | 0.5284 |
+| shared (MVP, `full` loss) | 0.7888 ± 0.0221 | 0.3925 |
+| shared_stratified | 0.7869 ± 0.0239 | 0.6004 |
+
+The copying was cured exactly as predicted — direction rose from **0.393 (below chance)** to
+0.600 (stratified) and 0.528 (weighted), +0.208 paired, p = 8.7e-04, 11/11 cancers. **But the
+headline metric did not move**: stratified − MVP = −0.002 (p 0.84), weighted − MVP = +0.005
+(p 0.53). Both still lose to the linear prior at every density (−0.041 to −0.068, p ≤ 0.012,
+better on 0–2 of 11 cancers). Curing the symptom did not close the gap, so the objective was not
+the binding constraint.
+
+## 7B.3 The decisive check: the model *does* carry complementary signal
+
+Combining the trained model's scores with the linear prior (both z-scored, **equal weights, no
+fitted parameters**, prior's λ still leave-one-out — so this is leak-free):
+
+| scorer (ρ = 0.01) | changed-edge AUROC |
+|---|---|
+| model alone | 0.7869 ± 0.0239 |
+| linear prior alone | 0.8412 ± 0.0179 |
+| **model + prior** | **0.8701 ± 0.0156** |
+
+**+0.0290 over the prior alone (p = 5.2e-04, better on 11 / 11 cancers).** (A tuned mixing weight
+reaches 0.874, but that weight was chosen on the test cancer, so only the equal-weight number is
+trustworthy.)
+
+So the GNN is learning real cancer-specific structure that a two-parameter rule cannot express —
+it simply cannot express the *other* part. The most likely reason is architectural: the bilinear
+decoder computes `Z W Zᵀ` with `Z = GCN(A_normal)` and has **no additive per-pair term**, so it
+cannot represent a fixed input-independent matrix like the average tumour graph — which is the
+single largest component of the target. The model is forced to choose between using the input and
+reproducing the prior, and it cannot do both.
+
+## What Phase 7B shows
+
+- **The task has learnable, cancer-specific structure**, and our model finds some of it: adding it
+  to the best simple baseline improves on that baseline for **every one of the 11 cancers**.
+- **The MVP's copying was an objective artefact** and is fixable by a loss change alone (direction
+  0.393 → 0.600), but that alone buys nothing on the headline metric.
+- **Alone, the model still loses to a two-parameter rule** — an honest negative that no amount of
+  loss engineering removed.
+- **The binding constraint is most likely the decoder's lack of an additive bias term.** That is a
+  concrete, minimal, testable architecture change (a learned per-pair bias, or training the model
+  as a residual on an explicit prior) — deliberately *not* attempted here, since this phase was
+  scoped to leave the architecture untouched.
 
 ## Gate 7
 
