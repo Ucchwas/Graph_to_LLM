@@ -192,12 +192,76 @@ reproducing the prior, and it cannot do both.
   as a residual on an explicit prior) — deliberately *not* attempted here, since this phase was
   scoped to leave the architecture untouched.
 
+---
+
+# Phase 7C — the strict-protocol verification, and the freeze
+
+The 7B.3 combination above used equal weights with no fitted mixing parameter, which is leak-free
+but is not the protocol a reviewer will ask for. Phase 7C re-derives it with **every** free
+parameter — λ *and* the mixing weight α — chosen on the fold's **validation cancer**, priors built
+from the 9 training cancers only, and the test cancer scored exactly **once**. The saved Phase-7B
+checkpoints are re-scored, not retrained (`g2l/verify7.py`, laptop CPU, ~8 min, no GPU).
+
+## Result: the effect verifies, and is slightly larger under strict selection
+
+| arm (ρ = 0.01, n = 11) | z-scored | rank-normalised |
+|---|---|---|
+| **model + prior, strict (λ, α) on validation** | **0.8686 ± 0.0154** | **0.8645 ± 0.0164** |
+| model + prior, equal weights (the 7B.3 route) | 0.8670 ± 0.0158 | 0.8485 ± 0.0194 |
+| linear prior alone (λ leave-one-out on train) | 0.8348 ± 0.0185 | 0.8348 ± 0.0185 |
+| model alone | 0.7869 ± 0.0239 | 0.7869 ± 0.0239 |
+
+| paired delta | z-scored | rank-normalised |
+|---|---|---|
+| **strict combo − prior** | **+0.0337 (p 1.0e-04, 11/11)** | **+0.0297 (p 1.3e-04, 11/11)** |
+| strict combo − model | +0.0816 (p 1.3e-05, 11/11) | +0.0776 (p 9.7e-06, 11/11) |
+| strict combo − equal-weight combo | +0.0015 (p 0.24, 5/11) | +0.0160 (p 0.0049, 11/11) |
+
+**The Phase-7B claim survives.** Selecting the mixing weight honestly costs nothing — the strict
+combination is marginally *better* than the equal-weight one, and beats the prior on **11 of 11**
+cancers under both normalisers. Selected α ranges 0.1–0.6 across folds, so no fold wanted the model
+alone or the prior alone.
+
+**Two corrections to the numbers as published.**
+
+1. The 7B.3 table quoted the prior at **0.8412**; the committed baseline path
+   (`run_phase7.run_baselines` → `linear_prior`, 9 training cancers) gives **0.8348**, which is
+   exactly the `linear_prior` row of the 7B.1 aggregate. The 7B.3 figure came from an ad-hoc
+   analysis whose prior differed slightly from the committed code. Every number in this section is
+   from the committed path. The direction and significance are unchanged; the gap over the prior is
+   larger under the corrected baseline, not smaller.
+2. The rank-normalised column is a genuine robustness check only with **average ranks for ties**.
+   The prior is `mT + λ(A_n − mN)` with mT, mN means of 9 binary matrices, so it takes ~200 distinct
+   values over 2M cells and is massively tied; ranking with a bare `argsort` breaks those ties in
+   index order and injects noise at the magnitude of the signal. With that bug the check reported
+   +0.0089 (p 0.15) and looked like a scale artefact; with average ranks it reports +0.0297
+   (p 1.3e-04, 11/11) and agrees with the z-scored column.
+
+**Standing caveat:** the validation cancer already drove that fold's early stopping, so selecting α
+on it reuses validation. That is what validation is for and the test cancer is untouched, but it is
+not a fresh selection set.
+
+## Where Phase 7 ends
+
+The architecture learns cancer-specific structure that a two-parameter rule cannot express — adding
+it to the best simple baseline improves that baseline on every one of the 11 cancers, under two
+independent normalisers and strict validation-only selection. **Alone it still loses to that rule**
+(0.7869 vs 0.8348), and the most likely reason remains architectural: `Z W Zᵀ` has no additive
+per-pair term, so it cannot represent the input-independent average-tumour component that dominates
+the target. That was not fixed here — Phase 7 is frozen at this result and the decoder question
+carries into Phase 8, where the task prior is an explicitly separated, task-specific term rather
+than something the universal backbone must learn.
+
+Full tables: `results/phase7/verify.md`, rows in `results/phase7/verify.json`.
+
 ## Gate 7
 
 - [x] Gate 7.0 passed on all three probe cancers
 - [x] `pytest tests/test_tcga.py` green (10 passed); all rows at one pinned code commit
 - [x] identity exactly 0.5 on both changed-edge strata in every fold
 - [x] changed-edge table with paired model − baseline deltas (n = 11)
+- [x] Phase 7C: strict validation-only selection reproduces the combination result (11/11, both
+      normalisers); `pytest tests/test_tcga.py` green; **phase frozen**
 - [ ] VALIDATED line — user
 
 VALIDATED ____
