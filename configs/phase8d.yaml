@@ -1,0 +1,24 @@
+# Phase 8D -- bounded ogbg-molhiv calibration. The question is whether our HARNESS is sound, not
+# whether we can win the leaderboard. The OGB baseline is reproduced inside our pipeline rather than
+# quoted, then only LGM capacity (d) and regularisation (dropout) are tuned, on validation, over
+# three fixed seeds. The test split is untouched until a frozen config passes the validation gate.
+
+# --- OGB reference reproduction (examples/graphproppred/mol): do not tune these ---
+ogb_d: 300
+ogb_layers: 5
+ogb_dropout: 0.5
+
+# --- LGM: `layers` and `k` fixed; only d and dropout are swept, from the command line ---
+layers: 4
+k: 3
+
+# --- shared training setup, matching OGB's reference so the reproduction is faithful ---
+batch_size: 32          # OGB uses 32 graphs per batch
+lr: 1.0e-3              # OGB uses plain Adam, no weight decay
+max_epochs: 100
+patience: 20
+seeds: [0, 1, 2]
+
+# The sweep, run as one array task per configuration (see slurm/phase8d_calib.sbatch):
+#   d in {64, 128, 256} x dropout in {0.0, 0.3, 0.5}
+# Phase 8C ran d=256, dropout=0.0 -- 3.2M parameters against GIN's 32k -- and overfit from epoch 19.
