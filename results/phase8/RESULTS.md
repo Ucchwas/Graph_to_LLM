@@ -141,15 +141,32 @@ from recall.
 | LGM-no-atom (**ablation**, not comparable) | 0.7076 | 0.6332 | 3,164,449 | 18 / 39 |
 | **atom − no-atom** | **−0.0074** | **+0.0485** | +44,544 | |
 
-Official OGB reference baselines, for `LGM-with-atom` only:
+Placement against the full 41-entry leaderboard, for `LGM-with-atom` only. **It would not rank: 0.6817
+is below every ranked entry**, 0.073 under last place.
 
-| model | val ROC-AUC | test ROC-AUC | params |
+| rank | method | test ROC-AUC | params |
 |---|---|---|---|
-| GCN | 0.8204 ± 0.0141 | 0.7606 ± 0.0097 | 527,701 |
-| GIN | 0.8232 ± 0.0090 | 0.7558 ± 0.0140 | 1,885,206 |
-| GCN + virtual node | 0.8384 ± 0.0091 | 0.7599 ± 0.0119 | 1,978,801 |
-| GIN + virtual node | 0.8479 ± 0.0068 | 0.7707 ± 0.0149 | 3,336,306 |
-| leaderboard top-1 | — | 0.8476 ± 0.0002 | — |
+| 1 | Multi-RF Fusion + Multi-GNN | 0.8476 ± 0.0002 | 993,331,107 |
+| 9 | Molecular FP + Random Forest | 0.8208 ± 0.0037 | **5,782** |
+| 20 | GINE | 0.7921 ± 0.0128 | **33,217** |
+| 21 | GIN | 0.7908 ± 0.0102 | **32,385** |
+| 23 | GINE+HE | 0.7903 ± 0.0079 | **9,393** |
+| 35 | GIN + virtual node | 0.7707 ± 0.0149 | 3,336,306 |
+| 38 | GCN | 0.7606 ± 0.0097 | 527,701 |
+| 41 | GCN (in Julia) | 0.7549 ± 0.0163 | 527,701 |
+| — | **ours** | **0.6817** | **3,208,993** |
+
+**The parameter column is the finding.** GIN reaches 0.7908 with 32,385 parameters against our
+0.6817 with 3,208,993 — **99× the parameters for 0.11 less**. GINE+HE reaches 0.7903 with 9,393.
+The competitive models on this dataset live at 10k–500k parameters; we ran 3.2 M with dropout 0.0 on
+33k graphs at a 3.5 % positive rate, a capacity roughly two orders of magnitude too large,
+inherited unchanged from a link-prediction config. The epoch-18 peak and subsequent collapse is
+exactly what that predicts.
+
+Context that is not an excuse: molhiv rewards chemistry features over graph structure — the top
+entries are fingerprint fusions and a 5,782-parameter random forest outranks every GNN below rank 9.
+That flatters domain features generally, but it does not rescue us, because we lose to plain GIN at
+1/99th our size.
 
 ## What went wrong, stated as diagnosis rather than excuse
 
