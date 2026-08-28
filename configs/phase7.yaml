@@ -1,0 +1,22 @@
+# Phase 7 MVP -- normal graph -> tumour graph translation (user, 2026-08-28; docs/PLAN-PHASE7.md).
+# Architecture unchanged from Phases 5-6: raw normal adjacency rows + the NORMAL graph's edge_index
+# -> shared GCNConv(N -> 1024) -> residual GCN block -> bilinear decoder -> predicted tumour adjacency.
+# The tumour matrix is only ever a supervision target and a metric input.
+source: TcgaTargetGtex_rsem_gene_tpm            # UCSC Toil recompute, log2(TPM+0.001), Ensembl ids
+min_normal: 30            # a cancer is included iff it has this many `-11` solid-tissue-normal samples
+min_cancers: 8            # fewer than this and the phase is reported infeasible
+n_genes: 2000             # fixed aligned gene universe, one set for every cancer
+expr_floor: 1.0           # median log2(TPM+0.001) over the pooled NORMAL samples
+densities: [0.01, 0.005, 0.02]   # matched between conditions; 0.01 is the main protocol, the others sensitivity
+seed: 0
+gate_cancers: 3           # Gate 7.0 runs on the three cancers with the most normals
+bootstraps: 20
+kind: gcn
+width: 1024
+layers: 2
+lr: 3.0e-3
+lr_norm: 1.0e-4
+weight_decay: 0.01
+warmup: 100
+max_epochs: 300
+patience: 30

@@ -8,4 +8,5 @@ results/runs/
 .venv/
 *.egg-info/
 
-slides/
+slides/data/phase7/raw/
+data/phase7/processed/
