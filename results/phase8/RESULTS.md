@@ -1,11 +1,19 @@
-# Phase 8 — preliminary: the LGM beats a capacity-matched size-independent GCN, and one checkpoint holds from N ≤ 30 to N = 213
+# Phase 8 — one checkpoint transfers across graph sizes, but the architecture loses to edge-aware message passing
 
-**Preliminary result, one seed.** Gates 8.0–8.2 pass. On held-out `ogbg-molhiv` graphs the
-incidence-aware Graph Transformer scores **+0.065 AUROC / +0.204 AP** above a capacity-matched
-size-independent GCN at sizes it trained on and **+0.070 AUROC / +0.192 AP** at sizes it never saw,
-and both architectures transfer across size essentially without decay. **That gap is confounded**:
-the GCN cannot consume edge values, so it is not a clean architecture comparison — see
-*The GCN comparison is confounded too*.
+> **RETRACTED (job 453058):** this file previously headlined "the LGM beats a capacity-matched
+> size-independent GCN by +0.065/+0.070 AUROC". That comparison used `torch_geometric.GCNConv`,
+> which **structurally cannot consume edge attributes**, so the baseline never saw the bond features
+> the LGM was given. With that single unfairness removed — an OGB-style edge-aware GCN, everything
+> else held identical — **the baseline wins on both splits and both metrics, with fewer parameters**.
+> The corrected numbers are in *The fair comparison* below. The retracted claim is preserved here
+> rather than deleted.
+
+**What survives:** size independence. One checkpoint trained only on N ≤ 30 scores held-out graphs
+at N = 31–213 with essentially no decay, and both architectures do this. Gates 8.0–8.2 pass.
+
+**What does not:** the architecture claim. At matched capacity on this task, edge-aware message
+passing is better than incidence attention. On `ogbg-molhiv` graph classification (Phase 8C) the
+architecture does not rank on the official leaderboard at all.
 
 Marlowe array **452985**, 3 tasks, 1 GPU each, **25 min total (0.4 GPU-h)**, code commit `ac64f63`,
 one seed, identical masks across arms. Rows: `results/phase8/rows/`.
@@ -82,14 +90,40 @@ much of the gap. **Supported: the LGM scores higher than a capacity-matched size
 Not supported: that incidence attention beats message passing.** No arm in this run isolates the
 body, and the earlier claim in this file that the GCN comparison did so was wrong.
 
-The decomposition needs one more arm — the LGM with constant all-ones edge values. Then
-`lgm − lgm_flatedge` is the edge-value contribution and `lgm_flatedge − gcn` is the architecture
-contribution, both at matched capacity and matched structural access. An edge-aware message-passing
-baseline (GINEConv) would be the complementary check.
-
 Two smaller caveats on the same comparison: the GCN's width is 800 against the LGM's 256 (parameters
 are matched, width is not), and neither arm's hyperparameters were tuned separately — both use a
 config written with the LGM in mind.
+
+## The fair comparison — job 453058, and it reverses the result
+
+`EdgeGCNBaseline` removes the single unfairness and changes nothing else: the OGB-style edge-aware
+GCN whose neighbour messages carry all three bond attributes, using the **LGM's own**
+`NodeEdgeProjection` for the edge encoding, the same node featuriser, the same decoder, the same
+split, masks, seed and training budget. Both arms trained from scratch at commit `a4a6392`.
+
+| arm | params | seen N ≤ 30 | | unseen N 31–213 | |
+|---|---|---|---|---|---|
+| | | **AUROC** | **AP** | **AUROC** | **AP** |
+| **edge-aware GCN** | 3,187,328 | **0.9480** | **0.7123** | **0.9422** | **0.5615** |
+| LGM | 3,229,728 | 0.9300 | 0.6328 | 0.9246 | 0.4544 |
+| **edgegcn − LGM** | −42,400 | **+0.0180** | **+0.0795** | **+0.0176** | **+0.1071** |
+
+**The baseline wins on both splits and both metrics while using 42,400 fewer parameters.** The AP
+margin is the larger one — +0.11 on unseen sizes, a quarter again on top of the LGM's score — and AP
+is the honest column at a 4.6 % base rate.
+
+So the earlier +0.065 was not merely confounded, it had the **wrong sign**. Once the baseline can
+see the bond attributes it overtakes the LGM, which means the entire apparent advantage came from
+edge access and then some.
+
+**A useful accident: an empirical noise floor.** The LGM arm re-ran the same configuration as job
+452985 and returned 0.9300 / 0.9246 against 0.9307 / 0.9267 — a drift of ~0.002 from GPU
+non-determinism alone (we do not set deterministic algorithms). The edgegcn − LGM gap is roughly
+9× that, so it is not run-to-run noise. It is still one seed with one noise estimate.
+
+**Residual caveats, none of which favour the LGM:** widths differ (592 vs 256, parameters matched),
+neither arm is tuned, and both hit the 40-epoch cap. Note the LGM has the *larger* receptive field —
+dense global attention against 4 hops of message passing — and still loses.
 
 ## Gate 8.0 / 8.1 and the decoder
 
