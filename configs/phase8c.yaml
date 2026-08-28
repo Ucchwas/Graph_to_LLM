@@ -1,0 +1,18 @@
+# Phase 8C -- ogbg-molhiv graph classification against the official OGB leaderboard.
+# Two arms differing in ONE input channel: `atom` uses the nine OGB atom features (comparable to
+# published numbers), `noatom` disables them only and keeps structural node init, topology and bond
+# features (an ablation, not comparable). Body, head, config, split and seed are identical.
+d: 256
+layers: 4
+heads: 8
+k: 3                 # bond features: type, stereo, is_conjugated
+dropout: 0.0
+budget: 512          # total nodes per block-diagonal batch (no padding)
+lr: 1.0e-3
+weight_decay: 0.01
+warmup: 200
+max_epochs: 100      # OGB's reference baselines train 100 epochs
+patience: 20
+seed: 0
+# Plain BCE, no pos_weight: molhiv is 3.5 % positive and the official baselines use unweighted BCE,
+# so weighting here would make the comparison to them apples-to-oranges.

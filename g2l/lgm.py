@@ -57,6 +57,7 @@ class RawGraph:
     edge_index: torch.Tensor
     edge_value: torch.Tensor | None = None
     batch: torch.Tensor | None = None
+    x: torch.Tensor | None = None      # [n, F] categorical node features (e.g. OGB atom features)
 
     @staticmethod
     def from_dense(A: torch.Tensor, edge_value: torch.Tensor | None = None) -> "RawGraph":
@@ -65,7 +66,8 @@ class RawGraph:
     def to(self, device) -> "RawGraph":
         return RawGraph(self.n, self.edge_index.to(device),
                         None if self.edge_value is None else self.edge_value.to(device),
-                        None if self.batch is None else self.batch.to(device))
+                        None if self.batch is None else self.batch.to(device),
+                        None if self.x is None else self.x.to(device))
 
 
 def canonical(g: RawGraph, dtype=None):
@@ -91,14 +93,17 @@ def concat_graphs(graphs: list[RawGraph], dtype=None) -> RawGraph:
     cross graphs, so incidence stays within a graph and the dense block is masked by `batch`
     (tests/test_lgm_batching.py pins that a batch reproduces the single-graph runs exactly)."""
     dtype = dtype or torch.get_default_dtype()
-    off, ei, ev, batch = 0, [], [], []
+    off, ei, ev, batch, xs = 0, [], [], [], []
     for b, g in enumerate(graphs):
         ei.append(g.edge_index + off)
         ev.append(g.edge_value.to(dtype) if g.edge_value is not None
                   else torch.ones(g.edge_index.shape[1], 1, dtype=dtype, device=g.edge_index.device))
         batch.append(torch.full((g.n,), b, dtype=torch.long, device=g.edge_index.device))
+        if g.x is not None:
+            xs.append(g.x)
         off += g.n
-    return RawGraph(off, torch.cat(ei, 1), torch.cat(ev, 0), torch.cat(batch))
+    return RawGraph(off, torch.cat(ei, 1), torch.cat(ev, 0), torch.cat(batch),
+                    torch.cat(xs) if xs else None)
 
 
 def segment_mean(x: torch.Tensor, batch: torch.Tensor | None, n_seg: int) -> torch.Tensor:
@@ -119,9 +124,15 @@ class NodeEdgeProjection(nn.Module):
     plus degree relative to the graph's mean degree, so one checkpoint spans mean degree 2 (molecules)
     to 31 (Amazon Photo). Edge features are symmetric in the endpoints."""
 
-    def __init__(self, d: int, k: int = 1, freqs: int = 8, degree_init: bool = True, d_rni: int = 0):
+    def __init__(self, d: int, k: int = 1, freqs: int = 8, degree_init: bool = True, d_rni: int = 0,
+                 atom_dims: list[int] | None = None):
         super().__init__()
         self.k, self.degree_init, self.d_rni = k, degree_init, d_rni
+        # One embedding per categorical node-feature column, summed -- OGB's AtomEncoder. Indexed by
+        # FEATURE VALUE, never by node index: two nodes with the same atom type get the same vector,
+        # so this cannot carry node identity and the model stays size-independent. That is the
+        # distinction the "no node-ID embedding table" constraint draws.
+        self.atom = nn.ModuleList([nn.Embedding(c, d) for c in atom_dims]) if atom_dims else None
         self.register_buffer("w", torch.logspace(-1, 1, freqs), persistent=False)
         self.f_node, self.f_edge = 2 * freqs + 3, k + 4
         self.u_node, self.u_edge = nn.Parameter(torch.zeros(d)), nn.Parameter(torch.zeros(d))
@@ -153,6 +164,9 @@ class NodeEdgeProjection(nn.Module):
         if not self.degree_init:
             fn = torch.zeros_like(fn)
         h = self.u_node + self.w_deg(fn)
+        if self.atom is not None:
+            assert g.x is not None, "atom_dims set but the graph carries no node features"
+            h = h + sum(emb(g.x[:, i]) for i, emb in enumerate(self.atom))
         if self.w_rni is not None:
             assert z is not None, "d_rni > 0: pass the random node states explicitly (see the tests)"
             h = h + self.w_rni(z)
@@ -245,9 +259,11 @@ class ISETBody(nn.Module):
     needs_graph = True
 
     def __init__(self, d: int, layers: int = 4, heads: int = 8, k: int = 1, dropout: float = 0.0,
-                 degree_init: bool = True, d_rni: int = 0, edges: bool = True):
+                 degree_init: bool = True, d_rni: int = 0, edges: bool = True,
+                 atom_dims: list[int] | None = None):
         super().__init__()
-        self.first = NodeEdgeProjection(d, k=k, degree_init=degree_init, d_rni=d_rni)
+        self.first = NodeEdgeProjection(d, k=k, degree_init=degree_init, d_rni=d_rni,
+                                        atom_dims=atom_dims)
         self.enc = nn.Module()
         self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout) for _ in range(layers)])
         self.edges = edges  # False = the no-edge control: identical model with edge states removed
@@ -266,11 +282,12 @@ class LGM(nn.Module):
 
     def __init__(self, d: int = 256, layers: int = 4, heads: int = 8, k: int = 1,
                  dropout: float = 0.0, degree_init: bool = True, d_rni: int = 0,
-                 edges: bool = True, seed: int | None = None):
+                 edges: bool = True, seed: int | None = None,
+                 atom_dims: list[int] | None = None):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
-        self.body = ISETBody(d, layers, heads, k, dropout, degree_init, d_rni, edges)
+        self.body = ISETBody(d, layers, heads, k, dropout, degree_init, d_rni, edges, atom_dims)
         self.dec_norm = nn.LayerNorm(d)
         nn.init.constant_(self.dec_norm.weight, 1 / math.sqrt(d))
         nn.init.zeros_(self.dec_norm.bias)
