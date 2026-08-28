@@ -1,0 +1,24 @@
+# Phase 8 Gate 8.2 -- one checkpoint across graph sizes, and whether the edge channel carries anything.
+# Architecture: raw graph (n, edge_index [2,M], edge_value [M,k]) -> shared projections -> node states
+# [N,d] + edge states [M_u,d] -> incidence-aware bidirectional Graph Transformer -> node outputs [N,d]
+# -> D1Bilinear -> [N,N]. No GCN anywhere; GCN is an external baseline only.
+dataset: ogbg-molhiv       # variable N (4-222) AND real 3-dim bond features; both are needed
+k: 3                       # edge-value width: bond type, stereo, is_conjugated (scaled to [0,1])
+d: 256
+layers: 4
+heads: 8
+dropout: 0.0
+
+# The size-generalisation test: train only on graphs at or below `train_max_n`, then score held-out
+# graphs ABOVE it. Those sizes were never seen by the checkpoint, which is the whole claim.
+train_max_n: 30            # ~75% of molhiv; the unseen-size split then runs to N = 222
+budget: 512                # total nodes per block-diagonal batch (no padding)
+mask_frac: 0.15
+
+lr: 1.0e-3
+weight_decay: 0.01
+warmup: 200
+max_epochs: 40
+patience: 6
+seed: 0
+eval_seed: 12345           # held-out cells are fixed across arms, so arms are paired
