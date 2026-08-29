@@ -25,6 +25,22 @@ from g2l.lgm import ISETBody, RawGraph
 BOND_SCALE = torch.tensor([3.0, 5.0, 1.0])
 
 
+@functools.lru_cache(maxsize=1)
+def atom_feature_dims() -> tuple:
+    from ogb.utils.features import get_atom_feature_dims
+
+    return tuple(get_atom_feature_dims())
+
+
+def pool(h: torch.Tensor, seg: torch.Tensor, n_graphs: int) -> torch.Tensor:
+    """Mean of `h` over each segment. Segments with no rows (a single-atom molecule has no bonds)
+    come out as zeros rather than NaN."""
+    tot = torch.zeros(n_graphs, h.shape[1], device=h.device, dtype=h.dtype).index_add_(0, seg, h)
+    cnt = torch.zeros(n_graphs, 1, device=h.device, dtype=h.dtype).index_add_(
+        0, seg, torch.ones_like(h[:, :1]))
+    return tot / cnt.clamp(min=1)
+
+
 class Batch:
     """One block-diagonal batch, carrying what BOTH model families need: raw categorical atom and
     bond features for the OGB reproduction, and the scaled float edge values the LGM's encoder
@@ -38,9 +54,27 @@ class Batch:
         return Batch(self.n, self.edge_index.to(device), self.edge_attr.to(device),
                      self.x.to(device), self.batch.to(device), self.y.to(device))
 
-    def raw(self) -> RawGraph:
-        return RawGraph(self.n, self.edge_index, self.edge_attr.float() / BOND_SCALE.to(self.x.device),
-                        self.batch, self.x)
+    def raw(self, nmask=None, emask=None, mask_tokens: bool = False) -> RawGraph:
+        """`mask_tokens` widens the input contract so an attribute can be marked ABSENT instead of
+        being silently set to some real category: every atom column gains one extra index meaning
+        MASK, and edge values gain a fourth channel that is 1 exactly when the bond attributes are
+        hidden. `emask` is per DIRECTED entry and must agree across both directions of an edge --
+        `canonical` averages them, so a half-masked edge would land at 0.5 and leak.
+
+        Both arms of the pretraining comparison carry the wider contract, so scratch and pretrained
+        are the same architecture (+640 parameters against the k=3 Phase-8D model at d=64)."""
+        dev = self.x.device
+        x, val = self.x, self.edge_attr.float() / BOND_SCALE.to(dev)
+        if not mask_tokens:
+            return RawGraph(self.n, self.edge_index, val, self.batch, x)
+        flag = torch.zeros(val.shape[0], 1, device=dev, dtype=val.dtype)
+        if emask is not None:
+            val = val * (~emask).unsqueeze(-1).to(val.dtype)
+            flag = emask.to(val.dtype).unsqueeze(-1)
+        if nmask is not None:
+            x = x.clone()
+            x[nmask] = torch.tensor(atom_feature_dims(), device=dev, dtype=x.dtype)
+        return RawGraph(self.n, self.edge_index, torch.cat([val, flag], 1), self.batch, x)
 
 
 class MolC:
@@ -88,23 +122,41 @@ def assemble(mols, idx) -> Batch:
 
 
 class LGMClassifier(torch.nn.Module):
-    """LGM body, mean pooling, linear head. `d` and `dropout` are the only knobs this phase tunes."""
+    """LGM body -> pooled graph vector -> head.
 
-    def __init__(self, d=256, layers=4, heads=8, k=3, dropout=0.0, atom_dims=None, seed=None):
+    `readout="node"` is the Phase-8C/8D behaviour: it pools node states and DISCARDS the final edge
+    states, even though every layer computes them. That throws away the one representation this
+    architecture has that a node-centric MPNN does not, which is why `readout="nodeedge"` --
+    [mean(H_nodes) || mean(H_edges)] -> MLP -> score -- exists to be measured against it.
+
+    The body is constructed FIRST so that, at a given seed, both readouts start from an identical
+    body initialisation and the comparison is genuinely paired."""
+
+    def __init__(self, d=256, layers=4, heads=8, k=3, dropout=0.0, atom_dims=None, seed=None,
+                 readout="node", head="linear", mask_tokens=False):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
+        assert readout in ("node", "nodeedge") and head in ("linear", "mlp")
+        self.readout, self.mask_tokens = readout, mask_tokens
+        if mask_tokens:
+            atom_dims = [c + 1 for c in (atom_dims or atom_feature_dims())]
+            k = k + 1
         self.body = ISETBody(d, layers, heads, k, dropout, atom_dims=atom_dims)
         self.norm = torch.nn.LayerNorm(d)
+        self.enorm = torch.nn.LayerNorm(d) if readout == "nodeedge" else None
         self.drop = torch.nn.Dropout(dropout)
-        self.head = torch.nn.Linear(d, 1)
+        w = d * (2 if readout == "nodeedge" else 1)
+        self.head = torch.nn.Linear(w, 1) if head == "linear" else torch.nn.Sequential(
+            torch.nn.Linear(w, d), torch.nn.GELU(), torch.nn.Dropout(dropout), torch.nn.Linear(d, 1))
 
-    def forward(self, b: Batch, n_graphs: int) -> torch.Tensor:
-        h = self.norm(self.body(b.raw()))
-        pooled = torch.zeros(n_graphs, h.shape[1], device=h.device, dtype=h.dtype).index_add_(0, b.batch, h)
-        cnt = torch.zeros(n_graphs, 1, device=h.device, dtype=h.dtype).index_add_(
-            0, b.batch, torch.ones_like(h[:, :1]))
-        return self.head(self.drop(pooled / cnt.clamp(min=1))).squeeze(-1)
+    def forward(self, b: Batch, n_graphs: int, nmask=None, emask=None) -> torch.Tensor:
+        hn, he, src, _ = self.body.encode(b.raw(nmask, emask, self.mask_tokens))
+        z = pool(self.norm(hn), b.batch, n_graphs)
+        if self.readout == "nodeedge":
+            # src indexes NODES, so batch[src] is the graph each undirected edge belongs to
+            z = torch.cat([z, pool(self.enorm(he), b.batch[src], n_graphs)], dim=-1)
+        return self.head(self.drop(z)).squeeze(-1)
 
 
 @torch.no_grad()

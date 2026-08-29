@@ -320,13 +320,20 @@ class ISETBody(nn.Module):
         self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout, sequential) for _ in range(layers)])
         self.edges = edges  # False = the no-edge control: identical model with edge states removed
 
-    def forward(self, g: RawGraph, z: torch.Tensor | None = None) -> torch.Tensor:
+    def encode(self, g: RawGraph, z: torch.Tensor | None = None):
+        """(node states [N,d], edge states [M_u,d], src, dst). The final edge states are a real
+        output of this architecture and every layer computes them, so anything that only ever reads
+        `forward` is throwing half the model away. `src` indexes nodes, so batch[src] segments the
+        edge states by graph."""
         hn, he, src, dst = self.first(g, z)
         if not self.edges:
             he, src, dst = he[:0], src[:0], dst[:0]
         for layer in self.enc.layers:
             hn, he = layer(hn, he, src, dst, g.batch)
-        return hn
+        return hn, he, src, dst
+
+    def forward(self, g: RawGraph, z: torch.Tensor | None = None) -> torch.Tensor:
+        return self.encode(g, z)[0]
 
 
 class LGM(nn.Module):

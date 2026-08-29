@@ -1,0 +1,23 @@
+# Phase 8F -- two changes to the molhiv classifier, measured as a 2x2 on VALIDATION only.
+#   readout: node vs nodeedge   -- does pooling the final EDGE states help?
+#   init:    scratch vs pretrained -- does masked-attribute self-supervision on the official
+#                                     TRAINING molecules only help?
+# Capacity and regularisation are FIXED at the Phase-8D winner (d=64, dropout 0.5), so this phase
+# changes one thing at a time and does not re-open a sweep that is already done.
+
+d: 64
+dropout: 0.5
+layers: 4
+k: 3                    # +1 mask-flag channel is added by the mask-token input contract
+
+# --- supervised fine-tuning: identical to Phase 8D so the numbers are comparable ---
+batch_size: 32
+lr: 1.0e-3
+max_epochs: 100
+patience: 20
+seeds: [0, 1, 2]
+
+# --- self-supervision, training molecules only ---
+mask_frac: 0.15         # 15% of atoms and 15% of bonds per batch, attributes only, never topology
+pretrain_epochs: 30     # fixed; no early stopping, see the note in g2l/molpretrain.pretrain
+pretrain_lr: 1.0e-3
