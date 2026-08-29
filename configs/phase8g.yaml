@@ -1,0 +1,27 @@
+# Phase 8G -- the leaderboard protocol. Three families, identical treatment, OGB's 10-seed rule.
+# LGM capacity/dropout/readout/init were fixed on validation in Phases 8D and 8F; the GNNs are
+# OGB's exact reference configs. The only open knobs are decided in --stage select, on validation.
+
+# --- LGM (Phase-8D winner + Phase-8F readout/init; head decided in select) ---
+d: 64
+dropout: 0.5
+layers: 4
+k: 3
+
+# --- OGB reference GIN / GCN (examples/graphproppred/mol) ---
+ogb_d: 300
+ogb_layers: 5
+ogb_dropout: 0.5
+
+# --- supervised training, identical across all three families ---
+batch_size: 32
+lr: 1.0e-3
+max_epochs: 100
+patience: 20
+select_seeds: [0, 1, 2]
+final_seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]   # OGB: mean +- unbiased std over 10 seeds
+
+# --- self-supervision, official TRAINING split only, identical across all three families ---
+mask_frac: 0.15
+pretrain_epochs: 30
+pretrain_lr: 1.0e-3

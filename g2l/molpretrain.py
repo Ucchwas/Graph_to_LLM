@@ -57,6 +57,46 @@ def draw(b: Batch, frac: float, gen: torch.Generator):
     return nmask, umask[inv], umask, tgt
 
 
+def canonical_endpoints(b: Batch):
+    """(usrc, udst) for the undirected edges in the SAME order `draw` masks them -- the
+    torch.unique(min*n + max) key, which is also the order `lgm.canonical` builds edge states.
+    The GNN has no edge states, so its bond predictions read the two ENDPOINT node states instead,
+    and this is the row alignment that makes those predictions point at the right bonds."""
+    lo = torch.minimum(b.edge_index[0], b.edge_index[1])
+    hi = torch.maximum(b.edge_index[0], b.edge_index[1])
+    uniq = torch.unique(lo * b.n + hi)
+    return uniq // b.n, uniq % b.n
+
+
+def gnn_masked_batch(b: Batch, nmask, emask) -> Batch:
+    """The GNN's input contract for hidden attributes: categorical, via the reserved MASK index the
+    widened encoders add (index `dims[i]` per column). Same information as the LGM's zero+flag
+    channel -- "this attribute is absent" -- expressed in each family's native input type. The
+    original Batch is untouched; it still holds the prediction targets."""
+    x = b.x.clone()
+    x[nmask] = torch.tensor(atom_feature_dims(), device=x.device, dtype=x.dtype)
+    ea = b.edge_attr.clone()
+    ea[emask] = torch.tensor(bond_feature_dims(), device=ea.device, dtype=ea.dtype)
+    return Batch(b.n, b.edge_index, ea, x, b.batch, b.y)
+
+
+def gnn_ssl_loss(model, heads: MaskHeads, b: Batch, nmask, emask, umask, tgt) -> torch.Tensor:
+    """The GNN twin of `ssl_loss`: identical objective, same masks, same targets. Atom attributes
+    are read off node states; bond attributes off h_src + h_dst -- the sum, not a concatenation,
+    so the prediction is symmetric in the endpoints exactly as the LGM's edge states are."""
+    hn = model.node_states(gnn_masked_batch(b, nmask, emask))
+    loss = hn.sum() * 0.0
+    if bool(nmask.any()):
+        for i, h in enumerate(heads.atom):
+            loss = loss + F.cross_entropy(h(hn[nmask]), b.x[nmask, i])
+    if bool(umask.any()):
+        usrc, udst = canonical_endpoints(b)
+        hp = hn[usrc[umask]] + hn[udst[umask]]
+        for i, h in enumerate(heads.bond):
+            loss = loss + F.cross_entropy(h(hp), tgt[umask, i])
+    return loss
+
+
 def ssl_loss(body, heads: MaskHeads, b: Batch, nmask, emask, umask, tgt) -> torch.Tensor:
     """Summed cross-entropy over every masked atom column and every masked bond column."""
     hn, he, _, _ = body.encode(b.raw(nmask, emask, mask_tokens=True))
@@ -70,28 +110,21 @@ def ssl_loss(body, heads: MaskHeads, b: Batch, nmask, emask, umask, tgt) -> torc
     return loss
 
 
-def pretrain(model, mols, split, cfg, device, seed: int = 0, log=print) -> dict:
-    """Trains `model.body` in place on the training split only. Returns a summary; the caller saves
-    the body state dict. Fixed epoch count, no early stopping -- there is no held-out set here that
-    would not either be the supervised validation split (which would leak selection into it) or a
-    slice carved out of training (which would shrink the corpus for no measurement we use)."""
-    heads = MaskHeads(model.norm.normalized_shape[0]).to(device)
-    model.to(device)
-    opt = torch.optim.Adam(list(model.body.parameters()) + list(heads.parameters()),
-                           lr=cfg["pretrain_lr"])
+def _pretrain_loop(step, params, cfg, split, mols, device, seed, log) -> dict:
+    """The shared optimiser loop: `step(b, nmask, emask, umask, tgt)` returns the loss. One loop
+    for both model families, so mask schedule, epochs, lr, batch order and corpus are equal by
+    construction rather than by parallel maintenance."""
+    opt = torch.optim.Adam(params, lr=cfg["pretrain_lr"])
     gen = torch.Generator().manual_seed(seed + 10_000)
     t0, last = time.time(), 0.0
     for epoch in range(cfg["pretrain_epochs"]):
-        model.train()
-        heads.train()
         tot, nb = 0.0, 0
         for idx in batches(split["train"], cfg["batch_size"], seed=seed * 1000 + epoch):
             b = assemble(mols, idx)
             nmask, emask, umask, tgt = draw(b, cfg["mask_frac"], gen)
-            b = b.to(device)
             opt.zero_grad(set_to_none=True)
-            loss = ssl_loss(model.body, heads, b, nmask.to(device), emask.to(device),
-                            umask.to(device), tgt.to(device))
+            loss = step(b.to(device), nmask.to(device), emask.to(device),
+                        umask.to(device), tgt.to(device))
             loss.backward()
             opt.step()
             tot, nb = tot + loss.item(), nb + 1
@@ -101,3 +134,32 @@ def pretrain(model, mols, split, cfg, device, seed: int = 0, log=print) -> dict:
     return {"pretrain_epochs": cfg["pretrain_epochs"], "final_loss": last,
             "mask_frac": cfg["mask_frac"], "wallclock_s": round(time.time() - t0, 1),
             "n_pretrain_graphs": len(split["train"])}
+
+
+def pretrain(model, mols, split, cfg, device, seed: int = 0, log=print) -> dict:
+    """Trains `model.body` (an LGMClassifier's) in place on the training split only. Returns a
+    summary; the caller saves the body state dict. Fixed epoch count, no early stopping -- there is
+    no held-out set here that would not either be the supervised validation split (which would leak
+    selection into it) or a slice carved out of training (which would shrink the corpus for no
+    measurement we use)."""
+    heads = MaskHeads(model.norm.normalized_shape[0]).to(device)
+    model.to(device).train()
+    heads.train()
+    return _pretrain_loop(
+        lambda b, nm, em, um, tg: ssl_loss(model.body, heads, b, nm, em, um, tg),
+        list(model.body.parameters()) + list(heads.parameters()),
+        cfg, split, mols, device, seed, log)
+
+
+def pretrain_gnn(model, mols, split, cfg, device, seed: int = 0, log=print) -> dict:
+    """The GNN twin of `pretrain`: same loop, same masks, same schedule, same corpus. Trains
+    everything except the classification head (atom encoder, convs with their bond encoders,
+    batch norms); the head is untouched and stays fresh for fine-tuning, exactly as the LGM's."""
+    heads = MaskHeads(model.head.in_features).to(device)
+    model.to(device).train()
+    heads.train()
+    body_params = [p for k, p in model.named_parameters() if not k.startswith("head.")]
+    return _pretrain_loop(
+        lambda b, nm, em, um, tg: gnn_ssl_loss(model, heads, b, nm, em, um, tg),
+        body_params + list(heads.parameters()),
+        cfg, split, mols, device, seed, log)
