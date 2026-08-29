@@ -42,10 +42,11 @@ def commit_hash() -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/phase8.yaml")
-    ap.add_argument("--arm", default="lgm", choices=["lgm", "lgmseq", "noedge", "gcn", "edgegcn"])
+    ap.add_argument("--arm", default="lgm", choices=["lgm", "lgmseq", "lgmcount", "lgmsplit", "noedge", "gcn", "edgegcn"])
     ap.add_argument("--limit", type=int, default=None, help="cap the corpus (smoke runs only)")
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--tag", default="", help="suffix for the row key, e.g. a seed sweep label")
     ap.add_argument("--cpu", action="store_true")
     args = ap.parse_args()
     cfg = yaml.safe_load(pathlib.Path(args.config).read_text())
@@ -74,9 +75,10 @@ def main():
         model = BODIES[args.arm](w, layers=cfg["layers"], k=cfg["k"], dropout=cfg["dropout"], seed=seed)
         print(f"{args.arm} width {w} matched to the LGM's {ref} params", flush=True)
     else:
+        mode = {"lgmcount": "count", "lgmsplit": "split"}.get(args.arm, "joint")
         model = LGM(d=cfg["d"], layers=cfg["layers"], heads=cfg["heads"], k=cfg["k"],
                     dropout=cfg["dropout"], edges=(args.arm != "noedge"), seed=seed,
-                    sequential=(args.arm == "lgmseq"))
+                    sequential=args.arm in ("lgmseq", "lgmcount", "lgmsplit"), attn_mode=mode)
     print(f"arm={args.arm} device={device} params={sum(p.numel() for p in model.parameters())} "
           f"(lgm reference {ref})", flush=True)
     summary = train_gate(model, train, val, cfg, device, seed=seed)
@@ -100,7 +102,7 @@ def main():
         print(f"prior {k:34s} AUROC {v['auc']:.4f} AP {v['ap']:.4f}", flush=True)
 
     ROWS.mkdir(parents=True, exist_ok=True)
-    key = f"gate82_{args.arm}_seed{seed}" + ("_smoke" if args.limit else "")
+    key = f"gate82_{args.arm}_seed{seed}{args.tag}" + ("_smoke" if args.limit else "")
     (ROWS / f"{key}.json").write_text(json.dumps(row))
     if not args.limit:
         RUNS.mkdir(parents=True, exist_ok=True)

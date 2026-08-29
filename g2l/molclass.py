@@ -90,11 +90,13 @@ def assemble(mols, idx) -> Batch:
 class LGMClassifier(torch.nn.Module):
     """LGM body, mean pooling, linear head. `d` and `dropout` are the only knobs this phase tunes."""
 
-    def __init__(self, d=256, layers=4, heads=8, k=3, dropout=0.0, atom_dims=None, seed=None):
+    def __init__(self, d=256, layers=4, heads=8, k=3, dropout=0.0, atom_dims=None, seed=None,
+                 sequential=True, attn_mode="joint"):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
-        self.body = ISETBody(d, layers, heads, k, dropout, atom_dims=atom_dims)
+        self.body = ISETBody(d, layers, heads, k, dropout, atom_dims=atom_dims,
+                             sequential=sequential, attn_mode=attn_mode)
         self.norm = torch.nn.LayerNorm(d)
         self.drop = torch.nn.Dropout(dropout)
         self.head = torch.nn.Linear(d, 1)
@@ -128,6 +130,14 @@ def train(model, mols, split, cfg, device, seed=0, log=print) -> dict:
     torch.manual_seed(seed)
     model.to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"])
+    # Warm-up and gradient clipping are OFF for the OGB baselines, whose published recipe is plain
+    # Adam and which reproduce faithfully under it. They are ON for the LGM, because a transformer
+    # without warm-up is being denied its standard recipe rather than held to the same one -- the
+    # Phase-8D sweep showed exactly the symptom (LGM seed spread +-0.041 against GIN's +-0.0044).
+    # A `gin_warm` control arm runs the baseline WITH them, so the asymmetry is measured, not assumed.
+    warmup, clip = cfg.get("warmup", 0), cfg.get("clip", 0.0)
+    sched = (torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warmup))
+             if warmup else None)
     best, best_state, best_epoch, bad, t0 = -1.0, None, 0, 0, time.time()
     for epoch in range(cfg["max_epochs"]):
         model.train()
@@ -137,7 +147,11 @@ def train(model, mols, split, cfg, device, seed=0, log=print) -> dict:
             opt.zero_grad(set_to_none=True)
             loss = F.binary_cross_entropy_with_logits(model(bat, len(b)), bat.y)
             loss.backward()
+            if clip:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
             opt.step()
+            if sched is not None:
+                sched.step()
             tot, nb = tot + loss.item(), nb + 1
         v = rocauc(model, mols, split["valid"], cfg["batch_size"], device, ev)
         if v > best:
