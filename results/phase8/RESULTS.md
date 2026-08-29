@@ -125,6 +125,32 @@ non-determinism alone (we do not set deterministic algorithms). The edgegcn − 
 neither arm is tuned, and both hit the 40-epoch cap. Note the LGM has the *larger* receptive field —
 dense global attention against 4 hops of message passing — and still loses.
 
+## The sequential edge-then-node update — job 453148, right mechanism, wrong magnitude
+
+In the default layer both updates read the same input states, so topological information travels
+node→edge in one layer and edge→node in the next: two layers per hop, half the edge-aware GCN's
+propagation rate at equal depth. `sequential=True` updates edges first and feeds them to the node
+update, so `h_i` absorbs `h_j` within a single layer. Identical parameter count.
+
+| arm | seen AUROC / AP | unseen AUROC / AP |
+|---|---|---|
+| edge-aware GCN | **0.9480 / 0.7123** | **0.9422 / 0.5615** |
+| lgmseq | 0.9343 / 0.6444 | 0.9303 / 0.4696 |
+| lgm (control, same commit) | 0.9298 / 0.6343 | 0.9256 / 0.4575 |
+
+**lgmseq − lgm: +0.0046 AUROC, +0.0122 AP on unseen sizes** — real, at roughly 2× the 0.002
+GPU-non-determinism floor, and it confirms the mechanism. **But it closes only 26 % of the gap**;
+lgmseq is still −0.0119 AUROC and −0.0919 AP behind the GCN. The hypothesis was directionally
+correct and quantitatively insufficient.
+
+The control reproduced 0.9256 against job 453058's 0.9246 — inside the noise floor, so the attention
+refactor introduced no drift and the three arms are directly comparable.
+
+One claim corrected in passing: it is **not** true that the model had a 2-hop receptive field. The
+dense node←node block gives every node global *reach* after two layers. What is rate-limited is
+*topological* information, which travels only through the incidence channel. The narrower claim is
+what motivated the fix, and it is what the +0.005 measures.
+
 ## Gate 8.0 / 8.1 and the decoder
 
 Equivariance is asserted over **pair** orbits on multi-orbit graphs (P₆, K₂,₃), never on Petersen —
