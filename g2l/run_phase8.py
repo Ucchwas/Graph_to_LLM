@@ -42,7 +42,7 @@ def commit_hash() -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/phase8.yaml")
-    ap.add_argument("--arm", default="lgm", choices=["lgm", "noedge", "gcn", "edgegcn"])
+    ap.add_argument("--arm", default="lgm", choices=["lgm", "lgmseq", "noedge", "gcn", "edgegcn"])
     ap.add_argument("--limit", type=int, default=None, help="cap the corpus (smoke runs only)")
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--seed", type=int, default=None)
@@ -75,7 +75,8 @@ def main():
         print(f"{args.arm} width {w} matched to the LGM's {ref} params", flush=True)
     else:
         model = LGM(d=cfg["d"], layers=cfg["layers"], heads=cfg["heads"], k=cfg["k"],
-                    dropout=cfg["dropout"], edges=(args.arm == "lgm"), seed=seed)
+                    dropout=cfg["dropout"], edges=(args.arm != "noedge"), seed=seed,
+                    sequential=(args.arm == "lgmseq"))
     print(f"arm={args.arm} device={device} params={sum(p.numel() for p in model.parameters())} "
           f"(lgm reference {ref})", flush=True)
     summary = train_gate(model, train, val, cfg, device, seed=seed)

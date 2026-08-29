@@ -196,6 +196,47 @@ class IncidenceAttention(nn.Module):
     def split(self, x):
         return x.view(x.shape[0], self.h, self.dh)
 
+    def edge_from_nodes(self, hn, he, src, dst):
+        """edge<-node: exactly two endpoint keys, scored with the SAME projection for both slots,
+        which is what keeps the layer symmetric under swapping an edge's endpoints."""
+        m = he.shape[0]
+        if not m:
+            return he
+        scale = 1.0 / math.sqrt(self.dh)
+        qe = self.split(self.q(he))
+        kn, vn = self.split(self.k(hn)), self.split(self.v(hn))
+        le = torch.stack([(qe * kn[src]).sum(-1), (qe * kn[dst]).sum(-1)], dim=-1) * scale
+        pe = le.softmax(-1)                                                      # [M_u, H, 2]
+        out_e = pe[..., 0].unsqueeze(-1) * vn[src] + pe[..., 1].unsqueeze(-1) * vn[dst]
+        return self.o(out_e.reshape(m, self.h * self.dh))
+
+    def node_from_all(self, hn, he, src, dst, batch):
+        """node<-node dense plus node<-edge incidence, sharing ONE softmax against a common max."""
+        n, m = hn.shape[0], he.shape[0]
+        scale = 1.0 / math.sqrt(self.dh)
+        qn, kn, vn = self.split(self.q(hn)), self.split(self.k(hn)), self.split(self.v(hn))
+        ke, ve = self.split(self.k(he)), self.split(self.v(he))
+        lnn = torch.einsum("ihd,jhd->ijh", qn, kn) * scale
+        if batch is not None:
+            lnn = lnn.masked_fill((batch[:, None] != batch[None, :]).unsqueeze(-1), NEG_INF)
+        mx = lnn.amax(dim=1)
+        node_of = torch.cat([src, dst])
+        edge_of = torch.cat([torch.arange(m, device=he.device)] * 2)
+        if m:
+            lne = (qn[node_of] * ke[edge_of]).sum(-1) * scale + self.beta
+            mx = torch.maximum(mx, torch.full_like(mx, NEG_INF).index_reduce_(
+                0, node_of, lne, "amax", include_self=False))
+        enn = (lnn - mx.unsqueeze(1)).exp()
+        den = enn.sum(1)
+        num = torch.einsum("ijh,jhd->ihd", enn, vn)
+        if m:
+            ene = (lne - mx[node_of]).exp()
+            den = den + torch.zeros_like(den).index_add_(0, node_of, ene)
+            num = num + torch.zeros_like(num).index_add_(
+                0, node_of, ene.unsqueeze(-1) * ve[edge_of])
+        out_n = num / den.clamp(min=1e-30).unsqueeze(-1)
+        return self.o(out_n.reshape(n, self.h * self.dh))
+
     def forward(self, hn, he, src, dst, batch):
         n, m = hn.shape[0], he.shape[0]
         scale = 1.0 / math.sqrt(self.dh)
@@ -239,16 +280,27 @@ class ISETLayer(nn.Module):
     """Pre-LN block. The LayerNorms and the FFN are shared across both state types -- one
     transformer over one token set, with the type separation carried by u_node / u_edge."""
 
-    def __init__(self, d: int, heads: int, dropout: float = 0.0):
+    def __init__(self, d: int, heads: int, dropout: float = 0.0, sequential: bool = False):
         super().__init__()
         self.ln1, self.ln2 = nn.LayerNorm(d), nn.LayerNorm(d)
         self.attn = IncidenceAttention(d, heads)
         self.ff = nn.Sequential(nn.Linear(d, 4 * d), nn.GELU(), nn.Linear(4 * d, d))
-        self.dropout = dropout
+        self.dropout, self.sequential = dropout, sequential
 
     def forward(self, hn, he, src, dst, batch):
-        an, ae = self.attn(self.ln1(hn), self.ln1(he), src, dst, batch)
-        hn, he = hn + F.dropout(an, self.dropout, self.training), he + F.dropout(ae, self.dropout, self.training)
+        if self.sequential:
+            # Edges absorb their endpoints FIRST, then nodes read the already-updated edges, so
+            # h_i learns h_j within a single layer. In the parallel path below both updates read
+            # the same old states, so information needs node->edge in one layer and edge->node in
+            # the next: TWO layers per hop, half the propagation rate of a GCN at equal depth.
+            # tests/test_receptive_field.py measures the difference rather than asserting it.
+            he = he + F.dropout(self.attn.edge_from_nodes(self.ln1(hn), self.ln1(he), src, dst),
+                                self.dropout, self.training)
+            an = self.attn.node_from_all(self.ln1(hn), self.ln1(he), src, dst, batch)
+            hn = hn + F.dropout(an, self.dropout, self.training)
+        else:
+            an, ae = self.attn(self.ln1(hn), self.ln1(he), src, dst, batch)
+            hn, he = hn + F.dropout(an, self.dropout, self.training), he + F.dropout(ae, self.dropout, self.training)
         hn = hn + F.dropout(self.ff(self.ln2(hn)), self.dropout, self.training)
         he = he + F.dropout(self.ff(self.ln2(he)), self.dropout, self.training)
         return hn, he
@@ -260,12 +312,12 @@ class ISETBody(nn.Module):
 
     def __init__(self, d: int, layers: int = 4, heads: int = 8, k: int = 1, dropout: float = 0.0,
                  degree_init: bool = True, d_rni: int = 0, edges: bool = True,
-                 atom_dims: list[int] | None = None):
+                 atom_dims: list[int] | None = None, sequential: bool = False):
         super().__init__()
         self.first = NodeEdgeProjection(d, k=k, degree_init=degree_init, d_rni=d_rni,
                                         atom_dims=atom_dims)
         self.enc = nn.Module()
-        self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout) for _ in range(layers)])
+        self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout, sequential) for _ in range(layers)])
         self.edges = edges  # False = the no-edge control: identical model with edge states removed
 
     def forward(self, g: RawGraph, z: torch.Tensor | None = None) -> torch.Tensor:
@@ -283,11 +335,12 @@ class LGM(nn.Module):
     def __init__(self, d: int = 256, layers: int = 4, heads: int = 8, k: int = 1,
                  dropout: float = 0.0, degree_init: bool = True, d_rni: int = 0,
                  edges: bool = True, seed: int | None = None,
-                 atom_dims: list[int] | None = None):
+                 atom_dims: list[int] | None = None, sequential: bool = False):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
-        self.body = ISETBody(d, layers, heads, k, dropout, degree_init, d_rni, edges, atom_dims)
+        self.body = ISETBody(d, layers, heads, k, dropout, degree_init, d_rni, edges, atom_dims,
+                             sequential)
         self.dec_norm = nn.LayerNorm(d)
         nn.init.constant_(self.dec_norm.weight, 1 / math.sqrt(d))
         nn.init.zeros_(self.dec_norm.bias)
