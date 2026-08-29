@@ -3,12 +3,15 @@
   python -m g2l.run_molhiv --stage baseline --model gin      (reproduce OGB's GIN in our pipeline)
   python -m g2l.run_molhiv --stage baseline --model gcn
   python -m g2l.run_molhiv --stage tune --d 128 --dropout 0.5    (LGM, validation only)
-  python -m g2l.run_molhiv --stage final --d 128 --dropout 0.5   (one test evaluation, gated)
+  python -m g2l.run_molhiv --stage final --d 64 --dropout 0.5    (test evaluation, authorised)
+  python -m g2l.run_molhiv --stage final --model gin             (same, for a reproduced baseline)
 
 Every stage runs the three fixed seeds in `configs/phase8d.yaml` and reports the mean.
 `--stage tune` and `--stage baseline` never evaluate the test split. `--stage final` refuses to run
-unless `--confirm-gate-passed` is given, which is the operator asserting that the frozen
-configuration already matched or beat the reproduced baseline on validation.
+unless `--confirm-gate-passed` is given -- the operator explicitly authorising the test read. It was
+originally an assertion that the validation gate had passed; the gate was withdrawn by the user on
+2026-08-29, so it now records an authorisation and nothing more. Which architecture is built follows
+`--model`, NOT the stage, so a reproduced baseline can be carried into the final stage too.
 """
 import argparse
 import json
@@ -37,7 +40,7 @@ def commit_hash() -> str:
 
 
 def build(args, cfg, seed):
-    if args.stage == "baseline":
+    if args.model in ("gin", "gcn"):
         return OGBGNN(kind=args.model, d=cfg["ogb_d"], layers=cfg["ogb_layers"],
                       dropout=cfg["ogb_dropout"], seed=seed)
     return LGMClassifier(d=args.d, layers=cfg["layers"], heads=min(8, max(1, args.d // 32)),
@@ -49,23 +52,26 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/phase8d.yaml")
     ap.add_argument("--stage", required=True, choices=["baseline", "tune", "final"])
-    ap.add_argument("--model", default="gin", choices=["gin", "gcn"], help="baseline stage only")
+    ap.add_argument("--model", default=None, choices=["gin", "gcn", "lgm"],
+                    help="architecture; defaults to gin for --stage baseline, lgm otherwise")
     ap.add_argument("--d", type=int, default=128, help="LGM width (the tuned knob)")
     ap.add_argument("--dropout", type=float, default=0.5, help="LGM dropout (the tuned knob)")
     ap.add_argument("--confirm-gate-passed", action="store_true")
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--cpu", action="store_true")
     args = ap.parse_args()
+    if args.model is None:
+        args.model = "gin" if args.stage == "baseline" else "lgm"
     cfg = yaml.safe_load(pathlib.Path(args.config).read_text())
     if args.epochs:
         cfg["max_epochs"] = args.epochs
     if args.stage == "final" and not args.confirm_gate_passed:
-        raise SystemExit("--stage final requires --confirm-gate-passed: the test split is looked at "
-                         "once, only after a frozen config has matched the baseline on validation.")
+        raise SystemExit("--stage final requires --confirm-gate-passed: the operator authorising "
+                         "a read of the test split for this frozen configuration.")
     device = "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
 
     mols, split = load_molhiv()
-    name = args.model if args.stage == "baseline" else f"lgm_d{args.d}_p{args.dropout}"
+    name = args.model if args.model != "lgm" else f"lgm_d{args.d}_p{args.dropout}"
     print(f"stage={args.stage} arm={name} device={device} seeds={cfg['seeds']} "
           f"| train {len(split['train'])} valid {len(split['valid'])} test {len(split['test'])}", flush=True)
 
