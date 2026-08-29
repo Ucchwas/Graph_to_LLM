@@ -1,0 +1,36 @@
+# Phase 8H -- the final leaderboard run. Same protocol as 8G (identical treatment, select on
+# validation, 10 seeds, test read once per final configuration) with three procedure changes that
+# 8G's own measurements motivated, applied to ALL THREE families through the shared loops:
+#   pretrain_epochs 30 -> 100   every family's SSL loss was still falling at epoch 29 of 30
+#   warmup_steps 1000, clip 1.0 linear warm-up (~1 epoch at batch 32) + grad clipping; +0.0166 and
+#                               the seed spread nearly halved when measured on the LGM in 8E
+# plus the LGM's one free knob re-opened UNDER pretraining: d in {64, 128, 256}. 8D's "smaller is
+# better" was measured from scratch, where the failure was overfitting; the LGM's SSL loss (0.83)
+# sits well above GIN's (0.72) at 1/8.5 the parameters, so under SSL the sign may flip. Head is
+# fixed at linear (8G winner), readout nodeedge, init pretrained (8F winner), dropout 0.5.
+
+# --- LGM (d is overridden from the command line) ---
+d: 64
+dropout: 0.5
+layers: 4
+k: 3
+
+# --- OGB reference GIN / GCN ---
+ogb_d: 300
+ogb_layers: 5
+ogb_dropout: 0.5
+
+# --- supervised fine-tuning, identical across families ---
+batch_size: 32
+lr: 1.0e-3
+max_epochs: 100
+patience: 20
+warmup_steps: 1000
+clip: 1.0
+select_seeds: [0, 1, 2]
+final_seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]   # OGB: mean +- unbiased std over 10 seeds
+
+# --- self-supervision, official TRAINING split only, identical across families ---
+mask_frac: 0.15
+pretrain_epochs: 100
+pretrain_lr: 1.0e-3

@@ -180,6 +180,12 @@ def train(model, mols, split, cfg, device, seed=0, log=print) -> dict:
     torch.manual_seed(seed)
     model.to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"])
+    # Optional, off unless the config asks (Phase 8D/8F/8G configs do not, so their rows still
+    # reproduce): linear LR warm-up over `warmup_steps` and gradient-norm clipping at `clip`.
+    # Measured on the LGM in Phase 8E at +0.0166 with the seed spread nearly halved. Lives in this
+    # ONE shared loop so every family gets it identically or not at all.
+    warm, clip = cfg.get("warmup_steps", 0), cfg.get("clip", None)
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm)) if warm else None
     best, best_state, best_epoch, bad, t0 = -1.0, None, 0, 0, time.time()
     for epoch in range(cfg["max_epochs"]):
         model.train()
@@ -189,7 +195,11 @@ def train(model, mols, split, cfg, device, seed=0, log=print) -> dict:
             opt.zero_grad(set_to_none=True)
             loss = F.binary_cross_entropy_with_logits(model(bat, len(b)), bat.y)
             loss.backward()
+            if clip:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
             opt.step()
+            if sched:
+                sched.step()
             tot, nb = tot + loss.item(), nb + 1
         v = rocauc(model, mols, split["valid"], cfg["batch_size"], device, ev)
         if v > best:

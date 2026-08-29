@@ -53,7 +53,8 @@ def commit_hash() -> str:
 
 def build(args, cfg, seed):
     if args.model == "lgm":
-        return LGMClassifier(d=cfg["d"], layers=cfg["layers"], heads=min(8, max(1, cfg["d"] // 32)),
+        d = args.d or cfg["d"]
+        return LGMClassifier(d=d, layers=cfg["layers"], heads=min(8, max(1, d // 32)),
                              k=cfg["k"], dropout=cfg["dropout"], seed=seed, readout="nodeedge",
                              head=args.head, mask_tokens=True)
     # scratch-final GNNs use OGB's exact architecture -- no unused mask rows in the reported
@@ -83,6 +84,8 @@ def main():
     ap.add_argument("--stage", required=True, choices=["pretrain", "select", "final"])
     ap.add_argument("--model", required=True, choices=["lgm", "gin", "gcn"])
     ap.add_argument("--head", default="mlp", choices=["linear", "mlp"], help="lgm only")
+    ap.add_argument("--d", type=int, default=None, help="lgm only: width, the LGM's free knob "
+                    "(as emb_dim=300 is OGB's); defaults to the config")
     ap.add_argument("--init", default="pretrained", choices=["scratch", "pretrained"])
     ap.add_argument("--seeds", default=None, help="comma list; defaults per stage from the config")
     ap.add_argument("--confirm-final", action="store_true")
@@ -102,9 +105,11 @@ def main():
     mols, split = load_molhiv()
     if args.limit:
         split = {k: v[:args.limit] for k, v in split.items()}
-    name = {"pretrain": f"pre_{args.model}",
-            "select": (f"lgm_h{args.head}" if args.model == "lgm" else f"{args.model}_{args.init}"),
-            "final": f"final_{args.model}_s{seeds[0]}-{seeds[-1]}"}[args.stage]
+    # the LGM's tag carries its width so checkpoints and rows at different d never collide
+    tag = f"lgm_d{args.d or cfg['d']}" if args.model == "lgm" else args.model
+    name = {"pretrain": f"pre_{tag}",
+            "select": (f"{tag}_h{args.head}" if args.model == "lgm" else f"{tag}_{args.init}"),
+            "final": f"final_{tag}_s{seeds[0]}-{seeds[-1]}"}[args.stage]
     print(f"stage={args.stage} arm={name} device={device} seeds={seeds} "
           f"| train {len(split['train'])} valid {len(split['valid'])} test {len(split['test'])}",
           flush=True)
@@ -113,7 +118,7 @@ def main():
     for seed in seeds:
         model = build(args, cfg, seed)
         params = sum(p.numel() for p in model.parameters())
-        ckpt = PRE / f"{args.model}_seed{seed}.pt"
+        ckpt = PRE / f"{tag}_seed{seed}.pt"
         if args.stage == "pretrain":
             print(f"seed {seed}: {params} params, SSL on {len(split['train'])} TRAINING molecules",
                   flush=True)
@@ -141,8 +146,10 @@ def main():
         print(line, flush=True)
 
     row = {"stage": args.stage, "arm": name, "model": args.model, "head": args.head,
-           "init": args.init, "commit": commit_hash(), "seeds": seeds, "n_params": params,
-           "per_seed": summaries}
+           "init": args.init, "d": (args.d or cfg["d"]) if args.model == "lgm" else None,
+           "commit": commit_hash(), "seeds": seeds, "n_params": params,
+           "pretrain_epochs": cfg["pretrain_epochs"], "warmup_steps": cfg.get("warmup_steps", 0),
+           "clip": cfg.get("clip"), "per_seed": summaries}
     for key, xs in (("val", vals), ("test", tests)):
         if xs:
             row[f"{key}_rocauc"] = xs
