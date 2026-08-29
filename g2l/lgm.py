@@ -185,16 +185,13 @@ class IncidenceAttention(nn.Module):
     edge<-node attends to exactly the two endpoints with the SAME projection for both slots, which
     is what keeps the layer symmetric under swapping an edge's endpoints."""
 
-    def __init__(self, d: int, heads: int, mode: str = "joint"):
+    def __init__(self, d: int, heads: int):
         super().__init__()
         assert d % heads == 0
-        assert mode in ("joint", "count", "split")
-        self.h, self.dh, self.mode = heads, d // heads, mode
+        self.h, self.dh = heads, d // heads
         self.q, self.k, self.v = (nn.Linear(d, d, bias=False) for _ in range(3))
         self.o = nn.Linear(d, d, bias=False)
         self.beta = nn.Parameter(torch.zeros(heads))
-        # `split` only: per-head mixing weight between the global pool and the incidence pool.
-        self.gate = nn.Parameter(torch.zeros(heads)) if mode == "split" else None
 
     def split(self, x):
         return x.view(x.shape[0], self.h, self.dh)
@@ -214,57 +211,19 @@ class IncidenceAttention(nn.Module):
         return self.o(out_e.reshape(m, self.h * self.dh))
 
     def node_from_all(self, hn, he, src, dst, batch):
-        """node<-node dense plus node<-edge incidence.
-
-        `joint`  one softmax over both key sets against a common max. The edge block then competes
-                 for mass on key COUNT: on molhiv a node has ~26 node keys and ~2.1 edge keys, so
-                 the channel carrying all the structure starts with ~7.8% of the attention mass.
-        `count`  the same single softmax, with each block's logits offset by -log(its key count), so
-                 a block contributes its MEAN exponentiated logit rather than its sum and the two
-                 balance by block rather than by cardinality. Still one normaliser, so a node update
-                 is still never a pure neighbourhood aggregate.
-        `split`  separate pools combined by a learned per-head gate. Strongest control over the
-                 balance, but it makes the local half an explicitly normalised neighbourhood pool,
-                 which weakens the "not message passing" position -- run as a labelled variant.
-        """
+        """node<-node dense plus node<-edge incidence, sharing ONE softmax against a common max."""
         n, m = hn.shape[0], he.shape[0]
         scale = 1.0 / math.sqrt(self.dh)
         qn, kn, vn = self.split(self.q(hn)), self.split(self.k(hn)), self.split(self.v(hn))
         ke, ve = self.split(self.k(he)), self.split(self.v(he))
         lnn = torch.einsum("ihd,jhd->ijh", qn, kn) * scale
-        valid = None
         if batch is not None:
-            valid = batch[:, None] == batch[None, :]
-            lnn = lnn.masked_fill(~valid.unsqueeze(-1), NEG_INF)
+            lnn = lnn.masked_fill((batch[:, None] != batch[None, :]).unsqueeze(-1), NEG_INF)
+        mx = lnn.amax(dim=1)
         node_of = torch.cat([src, dst])
         edge_of = torch.cat([torch.arange(m, device=he.device)] * 2)
-        deg = torch.zeros(n, device=hn.device, dtype=hn.dtype)
-        lne = None
         if m:
             lne = (qn[node_of] * ke[edge_of]).sum(-1) * scale + self.beta
-            deg = deg.index_add_(0, node_of,
-                                 torch.ones(node_of.numel(), device=hn.device, dtype=hn.dtype))
-
-        if self.mode == "count":
-            cn = (valid.sum(1).to(hn.dtype) if valid is not None
-                  else torch.full((n,), float(n), device=hn.device, dtype=hn.dtype))
-            lnn = lnn - cn.clamp(min=1).log()[:, None, None]
-            if m:
-                lne = lne - deg.clamp(min=1).log()[node_of].unsqueeze(-1)
-
-        if self.mode == "split":
-            out_nn = self._dense_pool(lnn, vn)
-            if not m:
-                return self.o(out_nn.reshape(n, self.h * self.dh))
-            g = torch.sigmoid(self.gate)[None, :, None]
-            out_ne = self._ragged_pool(lne, ve, node_of, edge_of, n)
-            has = (deg > 0).to(hn.dtype)[:, None, None]
-            # nodes with no incident edge fall back to the dense pool alone
-            out_n = g * out_nn + (1 - g) * (has * out_ne + (1 - has) * out_nn)
-            return self.o(out_n.reshape(n, self.h * self.dh))
-
-        mx = lnn.amax(dim=1)
-        if m:
             mx = torch.maximum(mx, torch.full_like(mx, NEG_INF).index_reduce_(
                 0, node_of, lne, "amax", include_self=False))
         enn = (lnn - mx.unsqueeze(1)).exp()
@@ -277,53 +236,6 @@ class IncidenceAttention(nn.Module):
                 0, node_of, ene.unsqueeze(-1) * ve[edge_of])
         out_n = num / den.clamp(min=1e-30).unsqueeze(-1)
         return self.o(out_n.reshape(n, self.h * self.dh))
-
-    @torch.no_grad()
-    def edge_mass(self, hn, he, src, dst):
-        """Diagnostic: the mean share of a node's attention mass that lands on its incident edges.
-
-        This is the quantity `count` and `split` exist to raise. Under `joint` it is driven by key
-        COUNT -- ~2 edge keys against ~26 node keys on molhiv -- which is the dilution the other two
-        modes are meant to remove. tests/test_attention_modes.py measures it rather than assuming it.
-        """
-        n, m = hn.shape[0], he.shape[0]
-        scale = 1.0 / math.sqrt(self.dh)
-        qn, kn, ke = self.split(self.q(hn)), self.split(self.k(hn)), self.split(self.k(he))
-        lnn = torch.einsum("ihd,jhd->ijh", qn, kn) * scale
-        node_of = torch.cat([src, dst])
-        edge_of = torch.cat([torch.arange(m, device=he.device)] * 2)
-        lne = (qn[node_of] * ke[edge_of]).sum(-1) * scale + self.beta
-        deg = torch.zeros(n, device=hn.device, dtype=hn.dtype).index_add_(
-            0, node_of, torch.ones(node_of.numel(), device=hn.device, dtype=hn.dtype))
-        if self.mode == "split":
-            # the balance is the learned gate itself, not a softmax competition
-            return (1 - torch.sigmoid(self.gate)).mean()
-        if self.mode == "count":
-            lnn = lnn - math.log(max(n, 1))
-            lne = lne - deg.clamp(min=1).log()[node_of].unsqueeze(-1)
-        mx = torch.maximum(lnn.amax(dim=1),
-                           torch.full((n, self.h), NEG_INF, device=hn.device, dtype=hn.dtype)
-                           .index_reduce_(0, node_of, lne, "amax", include_self=False))
-        den_n = (lnn - mx.unsqueeze(1)).exp().sum(1)
-        den_e = torch.zeros_like(den_n).index_add_(0, node_of, (lne - mx[node_of]).exp())
-        return (den_e / (den_n + den_e).clamp(min=1e-30)).mean()
-
-    @staticmethod
-    def _dense_pool(l, v):
-        """Softmax pool over the node keys alone."""
-        p = (l - l.amax(dim=1, keepdim=True)).exp()
-        return torch.einsum("ijh,jhd->ihd", p, v) / p.sum(1).clamp(min=1e-30).unsqueeze(-1)
-
-    @staticmethod
-    def _ragged_pool(l, v, node_of, edge_of, n):
-        """Segment softmax over each node's incident edge keys alone."""
-        mx = torch.full((n, l.shape[1]), NEG_INF, device=l.device, dtype=l.dtype).index_reduce_(
-            0, node_of, l, "amax", include_self=False)
-        e = (l - mx[node_of]).exp()
-        den = torch.zeros_like(mx).index_add_(0, node_of, e)
-        num = torch.zeros(n, l.shape[1], v.shape[-1], device=l.device, dtype=l.dtype).index_add_(
-            0, node_of, e.unsqueeze(-1) * v[edge_of])
-        return num / den.clamp(min=1e-30).unsqueeze(-1)
 
     def forward(self, hn, he, src, dst, batch):
         n, m = hn.shape[0], he.shape[0]
@@ -368,11 +280,10 @@ class ISETLayer(nn.Module):
     """Pre-LN block. The LayerNorms and the FFN are shared across both state types -- one
     transformer over one token set, with the type separation carried by u_node / u_edge."""
 
-    def __init__(self, d: int, heads: int, dropout: float = 0.0, sequential: bool = False,
-                 attn_mode: str = "joint"):
+    def __init__(self, d: int, heads: int, dropout: float = 0.0, sequential: bool = False):
         super().__init__()
         self.ln1, self.ln2 = nn.LayerNorm(d), nn.LayerNorm(d)
-        self.attn = IncidenceAttention(d, heads, attn_mode)
+        self.attn = IncidenceAttention(d, heads)
         self.ff = nn.Sequential(nn.Linear(d, 4 * d), nn.GELU(), nn.Linear(4 * d, d))
         self.dropout, self.sequential = dropout, sequential
 
@@ -401,14 +312,12 @@ class ISETBody(nn.Module):
 
     def __init__(self, d: int, layers: int = 4, heads: int = 8, k: int = 1, dropout: float = 0.0,
                  degree_init: bool = True, d_rni: int = 0, edges: bool = True,
-                 atom_dims: list[int] | None = None, sequential: bool = False,
-                 attn_mode: str = "joint"):
+                 atom_dims: list[int] | None = None, sequential: bool = False):
         super().__init__()
         self.first = NodeEdgeProjection(d, k=k, degree_init=degree_init, d_rni=d_rni,
                                         atom_dims=atom_dims)
         self.enc = nn.Module()
-        self.enc.layers = nn.ModuleList(
-            [ISETLayer(d, heads, dropout, sequential, attn_mode) for _ in range(layers)])
+        self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout, sequential) for _ in range(layers)])
         self.edges = edges  # False = the no-edge control: identical model with edge states removed
 
     def forward(self, g: RawGraph, z: torch.Tensor | None = None) -> torch.Tensor:
@@ -426,13 +335,12 @@ class LGM(nn.Module):
     def __init__(self, d: int = 256, layers: int = 4, heads: int = 8, k: int = 1,
                  dropout: float = 0.0, degree_init: bool = True, d_rni: int = 0,
                  edges: bool = True, seed: int | None = None,
-                 atom_dims: list[int] | None = None, sequential: bool = False,
-                 attn_mode: str = "joint"):
+                 atom_dims: list[int] | None = None, sequential: bool = False):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
         self.body = ISETBody(d, layers, heads, k, dropout, degree_init, d_rni, edges, atom_dims,
-                             sequential, attn_mode)
+                             sequential)
         self.dec_norm = nn.LayerNorm(d)
         nn.init.constant_(self.dec_norm.weight, 1 / math.sqrt(d))
         nn.init.zeros_(self.dec_norm.bias)

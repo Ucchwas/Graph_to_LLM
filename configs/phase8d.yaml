@@ -15,8 +15,6 @@ k: 3
 # --- shared training setup, matching OGB's reference so the reproduction is faithful ---
 batch_size: 32          # OGB uses 32 graphs per batch
 lr: 1.0e-3              # OGB uses plain Adam, no weight decay
-warmup: 500             # LGM only -- baselines are forced to 0 in the runner (see run_molhiv)
-clip: 1.0               # LGM only
 max_epochs: 100
 patience: 20
 seeds: [0, 1, 2]

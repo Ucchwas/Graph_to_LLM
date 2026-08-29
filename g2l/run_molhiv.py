@@ -42,17 +42,13 @@ def build(args, cfg, seed):
                       dropout=cfg["ogb_dropout"], seed=seed)
     return LGMClassifier(d=args.d, layers=cfg["layers"], heads=min(8, max(1, args.d // 32)),
                          k=cfg["k"], dropout=args.dropout, seed=seed,
-                         atom_dims=get_atom_feature_dims(),
-                         sequential=not args.parallel, attn_mode=args.attn)
+                         atom_dims=get_atom_feature_dims())
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/phase8d.yaml")
     ap.add_argument("--stage", required=True, choices=["baseline", "tune", "final"])
-    ap.add_argument("--attn", default="joint", choices=["joint", "count", "split"])
-    ap.add_argument("--parallel", action="store_true", help="disable the sequential update")
-    ap.add_argument("--warm", action="store_true", help="baseline stage: add warmup+clip (control)")
     ap.add_argument("--model", default="gin", choices=["gin", "gcn"], help="baseline stage only")
     ap.add_argument("--d", type=int, default=128, help="LGM width (the tuned knob)")
     ap.add_argument("--dropout", type=float, default=0.5, help="LGM dropout (the tuned knob)")
@@ -63,21 +59,13 @@ def main():
     cfg = yaml.safe_load(pathlib.Path(args.config).read_text())
     if args.epochs:
         cfg["max_epochs"] = args.epochs
-    # Baselines keep OGB's published recipe (plain Adam) under which they reproduce; the LGM gets
-    # warm-up and clipping, which a transformer needs and an MPNN does not. `--warm` runs a baseline
-    # WITH them so the asymmetry is measured rather than assumed.
-    if args.stage == "baseline" and not args.warm:
-        cfg["warmup"], cfg["clip"] = 0, 0.0
     if args.stage == "final" and not args.confirm_gate_passed:
         raise SystemExit("--stage final requires --confirm-gate-passed: the test split is looked at "
                          "once, only after a frozen config has matched the baseline on validation.")
     device = "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
 
     mols, split = load_molhiv()
-    if args.stage == "baseline":
-        name = args.model + ("_warm" if args.warm else "")
-    else:
-        name = f"lgm_d{args.d}_p{args.dropout}_{args.attn}" + ("_par" if args.parallel else "")
+    name = args.model if args.stage == "baseline" else f"lgm_d{args.d}_p{args.dropout}"
     print(f"stage={args.stage} arm={name} device={device} seeds={cfg['seeds']} "
           f"| train {len(split['train'])} valid {len(split['valid'])} test {len(split['test'])}", flush=True)
 
