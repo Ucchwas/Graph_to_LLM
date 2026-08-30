@@ -1,0 +1,151 @@
+{
+ "bodies": {
+  "edgegcn": {
+   "n_cancers": 11,
+   "seeds": [
+    0,
+    1,
+    2
+   ],
+   "n_params": [
+    810810
+   ],
+   "auc_changed": {
+    "mean": 0.7134811518978588,
+    "se": 0.01660266648079649
+   },
+   "ap_changed": {
+    "mean": 0.28371542536723643,
+    "se": 0.027482530781391578
+   },
+   "auc": {
+    "mean": 0.7735200791961154,
+    "se": 0.02371908791701453
+   },
+   "auc_direction": {
+    "mean": 0.29169095403434986,
+    "se": 0.05755713255729274
+   }
+  },
+  "lgm": {
+   "n_cancers": 11,
+   "seeds": [
+    0,
+    1,
+    2
+   ],
+   "n_params": [
+    812176
+   ],
+   "auc_changed": {
+    "mean": 0.719643881121023,
+    "se": 0.021314541074720767
+   },
+   "ap_changed": {
+    "mean": 0.29981726389610197,
+    "se": 0.02734989770556717
+   },
+   "auc": {
+    "mean": 0.7542583934445486,
+    "se": 0.02527349796378798
+   },
+   "auc_direction": {
+    "mean": 0.41850287243275713,
+    "se": 0.07282281580320751
+   }
+  }
+ },
+ "paired": {
+  "auc_changed": {
+   "n": 11,
+   "mean": 0.006162729223164309,
+   "se": 0.016459256888696178,
+   "t": 0.3744232965582257,
+   "p": 0.7159069038930581,
+   "wins": 6,
+   "per_cancer": {
+    "Breast Invasive Carcinoma": -0.009955543229078656,
+    "Colon Adenocarcinoma": -0.021174934416907765,
+    "Head & Neck Squamous Cell Carcinoma": 0.005973192758991108,
+    "Kidney Clear Cell Carcinoma": 0.08642242328225858,
+    "Kidney Papillary Cell Carcinoma": 0.04672700702671573,
+    "Liver Hepatocellular Carcinoma": 0.04333231921550096,
+    "Lung Adenocarcinoma": 0.0462269327789091,
+    "Lung Squamous Cell Carcinoma": -0.010389522750696267,
+    "Prostate Adenocarcinoma": 0.030165048474944944,
+    "Stomach Adenocarcinoma": -0.03135759688741302,
+    "Thyroid Carcinoma": -0.11817930479841732
+   }
+  },
+  "ap_changed": {
+   "n": 11,
+   "mean": 0.01610183852886553,
+   "se": 0.020178611933615833,
+   "t": 0.7979656173495885,
+   "p": 0.4434268885920758,
+   "wins": 6,
+   "per_cancer": {
+    "Breast Invasive Carcinoma": 0.046358718578160596,
+    "Colon Adenocarcinoma": 0.007257359180939754,
+    "Head & Neck Squamous Cell Carcinoma": 0.05634706725196442,
+    "Kidney Clear Cell Carcinoma": 0.14385012408182957,
+    "Kidney Papillary Cell Carcinoma": -0.0026197478292759313,
+    "Liver Hepatocellular Carcinoma": -0.032209774084915654,
+    "Lung Adenocarcinoma": 0.051633243546623464,
+    "Lung Squamous Cell Carcinoma": -0.014753962156892841,
+    "Prostate Adenocarcinoma": 0.051324360651747225,
+    "Stomach Adenocarcinoma": -0.007802537185074204,
+    "Thyroid Carcinoma": -0.1222646282175856
+   }
+  },
+  "auc": {
+   "n": 11,
+   "mean": -0.019261685751566726,
+   "se": 0.017952937671242224,
+   "t": -1.0728988260467762,
+   "p": 0.30852466571996284,
+   "wins": 4,
+   "per_cancer": {
+    "Breast Invasive Carcinoma": -0.02608119771613726,
+    "Colon Adenocarcinoma": -0.09949970773263761,
+    "Head & Neck Squamous Cell Carcinoma": -0.06020275208692072,
+    "Kidney Clear Cell Carcinoma": 0.0027078034564720355,
+    "Kidney Papillary Cell Carcinoma": 0.05197092247941215,
+    "Liver Hepatocellular Carcinoma": 0.08741243551927924,
+    "Lung Adenocarcinoma": 0.016741310812353305,
+    "Lung Squamous Cell Carcinoma": -0.0051590688354657965,
+    "Prostate Adenocarcinoma": -0.040926921845839015,
+    "Stomach Adenocarcinoma": -0.028429119023528182,
+    "Thyroid Carcinoma": -0.11041224829422214
+   }
+  },
+  "auc_direction": {
+   "n": 11,
+   "mean": 0.12681191839840722,
+   "se": 0.06036848026416262,
+   "t": 2.1006312871137216,
+   "p": 0.06201140934867465,
+   "wins": 8,
+   "per_cancer": {
+    "Breast Invasive Carcinoma": 0.3501625604445755,
+    "Colon Adenocarcinoma": 0.46671787563799183,
+    "Head & Neck Squamous Cell Carcinoma": 0.1943354522818598,
+    "Kidney Clear Cell Carcinoma": 0.020901746657936843,
+    "Kidney Papillary Cell Carcinoma": -0.11733040419311253,
+    "Liver Hepatocellular Carcinoma": -0.0969779106604357,
+    "Lung Adenocarcinoma": 0.2800652456817043,
+    "Lung Squamous Cell Carcinoma": 0.0038701395107480913,
+    "Prostate Adenocarcinoma": 0.3107674314357765,
+    "Stomach Adenocarcinoma": -0.028496067283871385,
+    "Thyroid Carcinoma": 0.010915032869306285
+   }
+  }
+ },
+ "paired_by_seed": {
+  "n": 33,
+  "mean": 0.006162729223164329,
+  "t": 0.5511582759989723,
+  "p": 0.585353296826846,
+  "wins": 18
+ }
+}
