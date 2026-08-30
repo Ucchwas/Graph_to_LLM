@@ -1,0 +1,37 @@
+# Phase 10, TCGA arm -- Phase 9's protocol unchanged (g2l/tcga9.py), with each body's structural
+# encoding added as a second arm and the seed count raised. Everything else is phase9.yaml verbatim,
+# so `lgm` and `edgegcn` here are the Phase-9 configurations and act as a replication check.
+density: 0.01            # the Phase-7 main protocol; the graphs are rebuilt bit-exactly from expression
+
+# --- input contract, identical for every body ---
+x_dim: 2                 # per-gene (mean, std) log2-TPM over the input condition's samples, z-scored
+                         # edge value k=1: the signed Spearman rho on each edge of the input graph
+
+# --- the structural encoding under test: K-step random walks off the INPUT edge set ---
+# lgm_rrwp      pairwise RRWP -> a learned per-head bias on the dense node<-node logits
+# edgegcn_rwse  its node-level diagonal (RWSE) -> added to the node input
+# A systems comparison, not an information-matched one: this is how GRIT (ICML 2023) and the KDD'26
+# positional-encoding benchmark compare a transformer against MPNN baselines. K is FIXED, not tuned.
+rrwp_k: 16
+
+# --- widths: both GCN arms take the width matched to the PLAIN LGM, so each arm of a body differs
+#     from its base in nothing but the structural term (all four counts within 2 %) ---
+d: 128
+heads: 4
+layers: 4
+dropout: 0.1
+
+bodies: [lgm, lgm_rrwp, edgegcn, edgegcn_rwse]
+
+# --- self-supervision: masked-cell reconstruction on the 18 training-cancer graphs, per fold ---
+mask_frac: 0.15
+ssl_epochs: 100          # fixed; no held-out set exists that would not leak selection
+
+# --- fine-tuning: stratified pos-weighted BCE (Phase 7B), select on the validation cancer ---
+lr: 1.0e-3
+weight_decay: 0.01
+warmup: 100
+clip: 1.0
+max_epochs: 300
+patience: 30
+seeds: [0, 1, 2, 3, 4]

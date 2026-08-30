@@ -28,6 +28,11 @@ Two symmetry rules the architecture must obey, both load-bearing for permutation
 Node<-node and node<-edge share ONE softmax, computed with a common max so the two blocks combine as
 their true joint normaliser, with a learned per-head offset on the edge block (the per-head bias
 strength of GaLA, CLAUDE.md section 9).
+
+Phase 10 adds ONE thing, off by default (`rrwp_k=0`): a learned per-head bias on the dense
+node<-node logits from the K-step relative random-walk probabilities of the input edge set
+(g2l/rrwp.py). The bias weights start at zero, so `rrwp_k=16` is bit-identical to the plain model
+at initialisation; the incidence blocks, edge states, FFN, projections and heads are untouched.
 """
 import math
 from dataclasses import dataclass
@@ -37,6 +42,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from g2l.decoders import D1Bilinear
+from g2l.rrwp import rrwp, rwse
 
 # nn.MultiheadAttention is not used here, but g2l.model sets this globally and this module must be
 # safe when imported on its own (an eval-mode fast path would cast additive float masks to bool).
@@ -125,10 +131,10 @@ class NodeEdgeProjection(nn.Module):
     to 31 (Amazon Photo). Edge features are symmetric in the endpoints."""
 
     def __init__(self, d: int, k: int = 1, freqs: int = 8, degree_init: bool = True, d_rni: int = 0,
-                 atom_dims: list[int] | None = None, x_dim: int = 0):
+                 atom_dims: list[int] | None = None, x_dim: int = 0, rwse_k: int = 0):
         super().__init__()
         assert not (atom_dims and x_dim), "node features are categorical (atom_dims) OR continuous (x_dim)"
-        self.k, self.degree_init, self.d_rni = k, degree_init, d_rni
+        self.k, self.degree_init, self.d_rni, self.rwse_k = k, degree_init, d_rni, rwse_k
         # Continuous per-node features (e.g. a gene's expression statistics), one linear map shared
         # by every node. Like the atom embeddings this is indexed by what the node IS, never by
         # which node it is, so it carries no node identity and the model stays size-independent.
@@ -144,6 +150,12 @@ class NodeEdgeProjection(nn.Module):
         self.w_deg = nn.Linear(self.f_node, d)
         self.w_ev = nn.Linear(self.f_edge, d)
         self.w_rni = nn.Linear(d_rni, d, bias=False) if d_rni else None
+        # Phase 10, the message-passing baselines' structural input: the k-step return
+        # probabilities of each node (g2l/rrwp.py), a function of the input topology only. A raw
+        # zero Parameter rather than an nn.Linear so that (a) the arm equals its base at init and
+        # (b) constructing it draws nothing from the RNG, leaving every later parameter's init
+        # untouched. The LGM does NOT use this: its structural addition is the attention bias.
+        self.w_rwse = nn.Parameter(torch.zeros(d, rwse_k)) if rwse_k else None
         self.ln_node, self.ln_edge = nn.LayerNorm(d), nn.LayerNorm(d)
 
     def node_features(self, deg: torch.Tensor, batch, n_seg: int) -> torch.Tensor:
@@ -175,6 +187,8 @@ class NodeEdgeProjection(nn.Module):
         if self.w_x is not None:
             assert g.x is not None, "x_dim set but the graph carries no node features"
             h = h + self.w_x(g.x.to(h.dtype))
+        if self.w_rwse is not None:
+            h = h + rwse(g.edge_index, g.n, self.rwse_k, dtype=h.dtype, batch=g.batch) @ self.w_rwse.T
         if self.w_rni is not None:
             assert z is not None, "d_rni > 0: pass the random node states explicitly (see the tests)"
             h = h + self.w_rni(z)
@@ -193,13 +207,24 @@ class IncidenceAttention(nn.Module):
     edge<-node attends to exactly the two endpoints with the SAME projection for both slots, which
     is what keeps the layer symmetric under swapping an edge's endpoints."""
 
-    def __init__(self, d: int, heads: int):
+    def __init__(self, d: int, heads: int, rrwp_k: int = 0):
         super().__init__()
         assert d % heads == 0
         self.h, self.dh = heads, d // heads
         self.q, self.k, self.v = (nn.Linear(d, d, bias=False) for _ in range(3))
         self.o = nn.Linear(d, d, bias=False)
         self.beta = nn.Parameter(torch.zeros(heads))
+        # Phase 10: per-head weights over the K RRWP channels -> an additive bias on the DENSE
+        # node<-node logits only. Zero at init (the arm equals its base), no RNG draw, no bias term
+        # (a per-head constant on the dense block would duplicate `beta`'s role).
+        self.w_rrwp = nn.Parameter(torch.zeros(heads, rrwp_k)) if rrwp_k else None
+
+    def dense_logits(self, qn, kn, scale, rr):
+        lnn = torch.einsum("ihd,jhd->ijh", qn, kn) * scale                       # [N, N, H]
+        if self.w_rrwp is not None:
+            assert rr is not None, "rrwp_k > 0 but no RRWP tensor was handed to the layer"
+            lnn = lnn + rr @ self.w_rrwp.T                                       # [N, N, K] @ [K, H]
+        return lnn
 
     def split(self, x):
         return x.view(x.shape[0], self.h, self.dh)
@@ -218,13 +243,13 @@ class IncidenceAttention(nn.Module):
         out_e = pe[..., 0].unsqueeze(-1) * vn[src] + pe[..., 1].unsqueeze(-1) * vn[dst]
         return self.o(out_e.reshape(m, self.h * self.dh))
 
-    def node_from_all(self, hn, he, src, dst, batch):
+    def node_from_all(self, hn, he, src, dst, batch, rr=None):
         """node<-node dense plus node<-edge incidence, sharing ONE softmax against a common max."""
         n, m = hn.shape[0], he.shape[0]
         scale = 1.0 / math.sqrt(self.dh)
         qn, kn, vn = self.split(self.q(hn)), self.split(self.k(hn)), self.split(self.v(hn))
         ke, ve = self.split(self.k(he)), self.split(self.v(he))
-        lnn = torch.einsum("ihd,jhd->ijh", qn, kn) * scale
+        lnn = self.dense_logits(qn, kn, scale, rr)
         if batch is not None:
             lnn = lnn.masked_fill((batch[:, None] != batch[None, :]).unsqueeze(-1), NEG_INF)
         mx = lnn.amax(dim=1)
@@ -245,14 +270,14 @@ class IncidenceAttention(nn.Module):
         out_n = num / den.clamp(min=1e-30).unsqueeze(-1)
         return self.o(out_n.reshape(n, self.h * self.dh))
 
-    def forward(self, hn, he, src, dst, batch):
+    def forward(self, hn, he, src, dst, batch, rr=None):
         n, m = hn.shape[0], he.shape[0]
         scale = 1.0 / math.sqrt(self.dh)
         qn, kn, vn = self.split(self.q(hn)), self.split(self.k(hn)), self.split(self.v(hn))
         qe, ke, ve = self.split(self.q(he)), self.split(self.k(he)), self.split(self.v(he))
 
-        # ---- node <- node, dense --------------------------------------------------------------
-        lnn = torch.einsum("ihd,jhd->ijh", qn, kn) * scale                       # [N, N, H]
+        # ---- node <- node, dense (+ the RRWP bias when enabled) --------------------------------
+        lnn = self.dense_logits(qn, kn, scale, rr)                               # [N, N, H]
         if batch is not None:
             lnn = lnn.masked_fill((batch[:, None] != batch[None, :]).unsqueeze(-1), NEG_INF)
         mx = lnn.amax(dim=1)                                                     # [N, H]
@@ -288,14 +313,15 @@ class ISETLayer(nn.Module):
     """Pre-LN block. The LayerNorms and the FFN are shared across both state types -- one
     transformer over one token set, with the type separation carried by u_node / u_edge."""
 
-    def __init__(self, d: int, heads: int, dropout: float = 0.0, sequential: bool = False):
+    def __init__(self, d: int, heads: int, dropout: float = 0.0, sequential: bool = False,
+                 rrwp_k: int = 0):
         super().__init__()
         self.ln1, self.ln2 = nn.LayerNorm(d), nn.LayerNorm(d)
-        self.attn = IncidenceAttention(d, heads)
+        self.attn = IncidenceAttention(d, heads, rrwp_k)
         self.ff = nn.Sequential(nn.Linear(d, 4 * d), nn.GELU(), nn.Linear(4 * d, d))
         self.dropout, self.sequential = dropout, sequential
 
-    def forward(self, hn, he, src, dst, batch):
+    def forward(self, hn, he, src, dst, batch, rr=None):
         if self.sequential:
             # Edges absorb their endpoints FIRST, then nodes read the already-updated edges, so
             # h_i learns h_j within a single layer. In the parallel path below both updates read
@@ -304,10 +330,10 @@ class ISETLayer(nn.Module):
             # tests/test_receptive_field.py measures the difference rather than asserting it.
             he = he + F.dropout(self.attn.edge_from_nodes(self.ln1(hn), self.ln1(he), src, dst),
                                 self.dropout, self.training)
-            an = self.attn.node_from_all(self.ln1(hn), self.ln1(he), src, dst, batch)
+            an = self.attn.node_from_all(self.ln1(hn), self.ln1(he), src, dst, batch, rr)
             hn = hn + F.dropout(an, self.dropout, self.training)
         else:
-            an, ae = self.attn(self.ln1(hn), self.ln1(he), src, dst, batch)
+            an, ae = self.attn(self.ln1(hn), self.ln1(he), src, dst, batch, rr)
             hn, he = hn + F.dropout(an, self.dropout, self.training), he + F.dropout(ae, self.dropout, self.training)
         hn = hn + F.dropout(self.ff(self.ln2(hn)), self.dropout, self.training)
         he = he + F.dropout(self.ff(self.ln2(he)), self.dropout, self.training)
@@ -320,12 +346,15 @@ class ISETBody(nn.Module):
 
     def __init__(self, d: int, layers: int = 4, heads: int = 8, k: int = 1, dropout: float = 0.0,
                  degree_init: bool = True, d_rni: int = 0, edges: bool = True,
-                 atom_dims: list[int] | None = None, sequential: bool = False, x_dim: int = 0):
+                 atom_dims: list[int] | None = None, sequential: bool = False, x_dim: int = 0,
+                 rrwp_k: int = 0):
         super().__init__()
         self.first = NodeEdgeProjection(d, k=k, degree_init=degree_init, d_rni=d_rni,
                                         atom_dims=atom_dims, x_dim=x_dim)
         self.enc = nn.Module()
-        self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout, sequential) for _ in range(layers)])
+        self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout, sequential, rrwp_k)
+                                         for _ in range(layers)])
+        self.rrwp_k = rrwp_k
         self.edges = edges  # False = the no-edge control: identical model with edge states removed
 
     def encode(self, g: RawGraph, z: torch.Tensor | None = None):
@@ -336,8 +365,11 @@ class ISETBody(nn.Module):
         hn, he, src, dst = self.first(g, z)
         if not self.edges:
             he, src, dst = he[:0], src[:0], dst[:0]
+        # RRWP from the SAME edge set `first` just consumed -- computed here, once per forward,
+        # from g.edge_index and nothing else, so hidden edges are hidden from it by construction.
+        rr = rrwp(g.edge_index, g.n, self.rrwp_k, dtype=hn.dtype, batch=g.batch) if self.rrwp_k else None
         for layer in self.enc.layers:
-            hn, he = layer(hn, he, src, dst, g.batch)
+            hn, he = layer(hn, he, src, dst, g.batch, rr)
         return hn, he, src, dst
 
     def forward(self, g: RawGraph, z: torch.Tensor | None = None) -> torch.Tensor:
@@ -350,12 +382,13 @@ class LGM(nn.Module):
     def __init__(self, d: int = 256, layers: int = 4, heads: int = 8, k: int = 1,
                  dropout: float = 0.0, degree_init: bool = True, d_rni: int = 0,
                  edges: bool = True, seed: int | None = None,
-                 atom_dims: list[int] | None = None, sequential: bool = False, x_dim: int = 0):
+                 atom_dims: list[int] | None = None, sequential: bool = False, x_dim: int = 0,
+                 rrwp_k: int = 0):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
         self.body = ISETBody(d, layers, heads, k, dropout, degree_init, d_rni, edges, atom_dims,
-                             sequential, x_dim)
+                             sequential, x_dim, rrwp_k)
         self.dec_norm = nn.LayerNorm(d)
         nn.init.constant_(self.dec_norm.weight, 1 / math.sqrt(d))
         nn.init.zeros_(self.dec_norm.bias)

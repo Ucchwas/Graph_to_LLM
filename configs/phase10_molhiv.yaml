@@ -1,0 +1,43 @@
+# Phase 10, MolHIV arm -- Phase 8H's protocol verbatim (official scaffold split, official
+# Evaluator, all 9 atom and 3 bond attribute columns, 100-epoch masked-attribute SSL on the
+# TRAINING split only, warm-up + clipping, select on validation over 3 seeds, 10 final seeds, test
+# read once per frozen configuration) with three arms added and one rule generalised.
+#
+# Six arms: {lgm, gin, gcn} x {plain, + its structural encoding}. The LGM gets the pairwise RRWP
+# attention bias; the MPNNs get its node-level diagonal (RWSE) on their node input. K is FIXED at 16
+# and never tuned.
+#
+# EQUAL TUNING BUDGETS. 8H gave the GNNs no free knob and the LGM one (width). Here every arm has
+# exactly one knob -- width, three values, three selection seeds, validation only. The GNN grids put
+# OGB's reference width (300) at the top so 8H's configuration stays reachable, and the parameter
+# spans line up with the LGM's (LGM 0.21/0.82/3.2 M, GIN 0.23/0.85/1.9 M, GCN 0.07/0.25/0.54 M).
+
+rrwp_k: 16
+
+# --- LGM (d is overridden from the command line; heads = min(8, d // 32), as in 8G/8H) ---
+d: 64
+dropout: 0.5
+layers: 4
+k: 3
+lgm_widths: [64, 128, 256]
+
+# --- OGB reference GIN / GCN ---
+ogb_d: 300
+ogb_layers: 5
+ogb_dropout: 0.5
+ogb_widths: [100, 200, 300]
+
+# --- supervised fine-tuning, identical across arms ---
+batch_size: 32
+lr: 1.0e-3
+max_epochs: 100
+patience: 20
+warmup_steps: 1000
+clip: 1.0
+select_seeds: [0, 1, 2]
+final_seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]   # OGB: mean +- unbiased std over 10 seeds
+
+# --- self-supervision, official TRAINING split only, identical across arms ---
+mask_frac: 0.15
+pretrain_epochs: 100
+pretrain_lr: 1.0e-3

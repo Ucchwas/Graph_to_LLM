@@ -133,7 +133,7 @@ class LGMClassifier(torch.nn.Module):
     body initialisation and the comparison is genuinely paired."""
 
     def __init__(self, d=256, layers=4, heads=8, k=3, dropout=0.0, atom_dims=None, seed=None,
-                 readout="node", head="linear", mask_tokens=False):
+                 readout="node", head="linear", mask_tokens=False, rrwp_k=0):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
@@ -142,7 +142,8 @@ class LGMClassifier(torch.nn.Module):
         if mask_tokens:
             atom_dims = [c + 1 for c in (atom_dims or atom_feature_dims())]
             k = k + 1
-        self.body = ISETBody(d, layers, heads, k, dropout, atom_dims=atom_dims)
+        # rrwp_k > 0 (Phase 10): the RRWP bias on the body's dense node<-node block; nothing else
+        self.body = ISETBody(d, layers, heads, k, dropout, atom_dims=atom_dims, rrwp_k=rrwp_k)
         self.norm = torch.nn.LayerNorm(d)
         self.enorm = torch.nn.LayerNorm(d) if readout == "nodeedge" else None
         self.drop = torch.nn.Dropout(dropout)

@@ -106,7 +106,7 @@ class OGBGNN(nn.Module):
     """OGB's GNN_node + mean pooling + linear head. `kind` in {gin, gcn}."""
 
     def __init__(self, kind: str = "gin", d: int = 300, layers: int = 5, dropout: float = 0.5,
-                 seed: int | None = None, mask_tokens: bool = False):
+                 seed: int | None = None, mask_tokens: bool = False, rwse_k: int = 0):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
@@ -115,12 +115,21 @@ class OGBGNN(nn.Module):
         self.convs = nn.ModuleList([conv(d, mask_tokens) for _ in range(layers)])
         self.bns = nn.ModuleList([nn.BatchNorm1d(d) for _ in range(layers)])
         self.head = nn.Linear(d, 1)
-        self.dropout, self.layers = dropout, layers
+        self.dropout, self.layers, self.rwse_k = dropout, layers, rwse_k
+        # Phase 10: random-walk structural encoding added to the atom embedding (the standard
+        # MPNN counterpart of the LGM's RRWP bias). Zero at init and drawn from no RNG, so the
+        # +RWSE arm is the OGB architecture exactly at initialisation. Not part of the head, so
+        # masked-attribute pretraining trains it and the checkpoint carries it.
+        self.w_rwse = nn.Parameter(torch.zeros(d, rwse_k)) if rwse_k else None
 
     def node_states(self, g) -> torch.Tensor:
         """The conv stack, pre-pool: [N, d]. Split out so masked-attribute pretraining can read
         per-node states -- forward() is exactly this plus mean pooling and the head."""
         h = self.atom_encoder(g.x)
+        if self.w_rwse is not None:
+            from g2l.rrwp import rwse
+            h = h + rwse(g.edge_index, g.n, self.rwse_k, dtype=h.dtype,
+                         batch=getattr(g, "batch", None)) @ self.w_rwse.T
         for k, (conv, bn) in enumerate(zip(self.convs, self.bns)):
             h = bn(conv(h, g.edge_index, g.edge_attr))
             h = F.dropout(h if k == self.layers - 1 else F.relu(h), self.dropout, self.training)

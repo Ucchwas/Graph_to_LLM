@@ -139,16 +139,30 @@ def ssl_corpus(ds: dict, train: list[str]) -> list[CGraph]:
 
 # ---------------------------------------------------------------- models
 
+KINDS = ("lgm", "lgm_rrwp", "edgegcn", "edgegcn_rwse")
+
+
 def build_model(kind: str, cfg: dict, seed: int):
+    """Phase 9's two bodies plus, in Phase 10, each body with its structural encoding: the LGM
+    with the RRWP attention bias, the edge-GCN with RWSE on its node input (`rrwp_k` in the
+    config, K = 16). Both GCN arms take the width matched to the PLAIN LGM, so every arm of a body
+    differs from its base in nothing but the structural term, and all four counts stay within 2 %
+    (tests/test_rrwp.py)."""
     common = dict(layers=cfg["layers"], k=1, dropout=cfg["dropout"], seed=seed, x_dim=cfg["x_dim"])
+    K = cfg.get("rrwp_k", 0)
     if kind == "lgm":
         return LGM(d=cfg["d"], heads=cfg["heads"], **common)
-    if kind == "edgegcn":
+    if kind == "lgm_rrwp":
+        assert K, "lgm_rrwp needs rrwp_k in the config"
+        return LGM(d=cfg["d"], heads=cfg["heads"], rrwp_k=K, **common)
+    if kind in ("edgegcn", "edgegcn_rwse"):
         ref = sum(p.numel() for p in LGM(d=cfg["d"], heads=cfg["heads"], **common).parameters())
         # refine=True: at this width step 8 lands 0.83 % away and step 1 lands 0.17 %. Phase 8's
         # calls deliberately leave it off so their published widths still reproduce.
         w = matched_width(ref, cfg["layers"], 1, kind="edgegcn", refine=True, x_dim=cfg["x_dim"])
-        return EdgeGCNBaseline(w, **common)
+        if kind == "edgegcn_rwse":
+            assert K, "edgegcn_rwse needs rrwp_k in the config"
+        return EdgeGCNBaseline(w, rwse_k=K if kind == "edgegcn_rwse" else 0, **common)
     raise ValueError(kind)
 
 

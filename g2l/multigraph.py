@@ -213,14 +213,16 @@ class EdgeGCNBaseline(torch.nn.Module):
     needs_graph = True
 
     def __init__(self, d: int, layers: int = 4, k: int = 1, dropout: float = 0.0, seed: int | None = None,
-                 x_dim: int = 0):
+                 x_dim: int = 0, rwse_k: int = 0):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
         from g2l.decoders import D1Bilinear
         from g2l.lgm import NodeEdgeProjection
 
-        self.first = NodeEdgeProjection(d, k=k, x_dim=x_dim)
+        # rwse_k > 0 (Phase 10): the shared projection also adds the random-walk structural
+        # encoding of each node -- the message-passing counterpart of the LGM's RRWP bias
+        self.first = NodeEdgeProjection(d, k=k, x_dim=x_dim, rwse_k=rwse_k)
         self.convs = torch.nn.ModuleList([EdgeGCNLayer(d) for _ in range(layers)])
         self.norms = torch.nn.ModuleList([torch.nn.LayerNorm(d) for _ in range(layers)])
         self.dec_norm = torch.nn.LayerNorm(d)

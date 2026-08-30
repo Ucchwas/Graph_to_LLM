@@ -46,7 +46,8 @@ def main():
     ap.add_argument("--stage", required=True, choices=["build", "run"])
     ap.add_argument("--fold", type=int, default=None)
     ap.add_argument("--seeds", default=None, help="comma list; default from the config")
-    ap.add_argument("--bodies", default=",".join(BODIES))
+    ap.add_argument("--bodies", default=None, help="comma list; default: the config's `bodies`, "
+                    "else lgm,edgegcn (Phase 9)")
     ap.add_argument("--epochs", type=int, default=None, help="smoke: caps SSL and fine-tune epochs")
     ap.add_argument("--limit-genes", type=int, default=None, help="smoke: shrink every graph")
     ap.add_argument("--cpu", action="store_true")
@@ -63,6 +64,7 @@ def main():
         cfg["ssl_epochs"] = cfg["max_epochs"] = args.epochs
     device = "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
     seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else cfg["seeds"]
+    bodies = args.bodies.split(",") if args.bodies else list(cfg.get("bodies", BODIES))
     ds = tcga9.load()
     if args.limit_genes:
         ds = shrink(ds, args.limit_genes)
@@ -75,7 +77,7 @@ def main():
     ROWS.mkdir(parents=True, exist_ok=True)
     counts = {}
     for seed in seeds:
-        for body in args.bodies.split(","):
+        for body in bodies:
             model = tcga9.build_model(body, cfg, seed)
             counts[body] = tcga9.n_params(model)
             print(f"\n[seed {seed}] {body}: {counts[body]:,} params", flush=True)
@@ -90,9 +92,11 @@ def main():
             print(f"[seed {seed}] {body}: val_changed {f['val_changed_auc']:.4f} | TEST changed AUROC "
                   f"{r['auc_changed']:.4f} AP {r['ap_changed']:.4f} overall AUROC {r['auc']:.4f} "
                   f"direction {r['auc_direction']:.4f} | wrote {key}.json", flush=True)
-    if len(counts) == 2:
-        a, b = counts["lgm"], counts["edgegcn"]
-        print(f"\nparameter match: lgm {a:,} vs edgegcn {b:,} ({100 * abs(a - b) / a:.2f}%)")
+    names = list(counts)
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            print(f"parameter match: {a} {counts[a]:,} vs {b} {counts[b]:,} "
+                  f"({100 * abs(counts[a] - counts[b]) / counts[a]:.2f}%)")
 
 
 if __name__ == "__main__":

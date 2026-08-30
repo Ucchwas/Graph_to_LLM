@@ -17,8 +17,9 @@ from g2l.lgm import RawGraph
 # d=64 is the floor of matched_width's search grid, so the capacity match is exercised for real
 CFG = {"d": 64, "heads": 2, "layers": 2, "dropout": 0.0, "x_dim": 2, "mask_frac": 0.2,
        "ssl_epochs": 2, "lr": 1e-3, "weight_decay": 0.0, "warmup": 5, "clip": 1.0,
-       "max_epochs": 2, "patience": 5, "seeds": [0]}
+       "max_epochs": 2, "patience": 5, "seeds": [0], "rrwp_k": 16}
 CANCERS = ["A", "B", "C", "D", "E"]
+BODIES = tcga9.KINDS          # Phase 10: the two Phase-9 bodies plus each one's structural encoding
 
 
 def synthetic(n_genes=40, n_samples=25, seed=0, density=0.05) -> dict:
@@ -133,7 +134,7 @@ def test_ssl_masks_do_not_depend_on_the_model():
 
 # ---------------------------------------------------------------- symmetry
 
-@pytest.mark.parametrize("body", ["lgm", "edgegcn"])
+@pytest.mark.parametrize("body", BODIES)
 def test_both_bodies_are_permutation_equivariant_with_features_and_edge_values(body):
     torch.manual_seed(0)
     ds = synthetic(n_genes=24, n_samples=15)
@@ -153,11 +154,24 @@ def test_both_bodies_are_permutation_equivariant_with_features_and_edge_values(b
 # ---------------------------------------------------------------- fairness
 
 def test_bodies_are_capacity_matched_share_the_decoder_and_the_input():
-    lgm = tcga9.build_model("lgm", CFG, 0)
-    gcn = tcga9.build_model("edgegcn", CFG, 0)
-    a, b = tcga9.n_params(lgm), tcga9.n_params(gcn)
-    assert abs(a - b) / a < 0.02, (a, b)
-    assert isinstance(lgm.decoder, D1Bilinear) and isinstance(gcn.decoder, D1Bilinear)
+    """At this deliberately tiny config (d=64, 2 layers) the three width-matched arms must agree to
+    2 %. The RWSE arm is checked by what it ADDS -- exactly `width x K` and nothing else -- because
+    a fixed [width, K] term is 2.1 % of a 106 k toy model but 0.59 % of the 811 k model that is
+    actually run. The 2 % match across all four arms at the REAL configuration is asserted on the
+    shipped yaml in tests/test_rrwp.py::test_all_four_tcga_arms_are_capacity_matched_within_two_percent."""
+    models = {k: tcga9.build_model(k, CFG, 0) for k in BODIES}
+    counts = {k: tcga9.n_params(m) for k, m in models.items()}
+    width_matched = [k for k in BODIES if k != "edgegcn_rwse"]
+    for i, a in enumerate(width_matched):
+        for b in width_matched[i + 1:]:
+            assert abs(counts[a] - counts[b]) / counts[a] < 0.02, (a, counts[a], b, counts[b])
+    lgm, gcn = models["lgm"], models["edgegcn"]
+    assert counts["lgm_rrwp"] - counts["lgm"] == CFG["layers"] * CFG["heads"] * CFG["rrwp_k"]
+    assert counts["edgegcn_rwse"] - counts["edgegcn"] == \
+        models["edgegcn_rwse"].first.w_deg.out_features * CFG["rrwp_k"]
+    assert models["edgegcn_rwse"].first.w_deg.out_features == gcn.first.w_deg.out_features
+    for m in models.values():
+        assert isinstance(m.decoder, D1Bilinear)
     assert type(lgm.body.first) is type(gcn.first)                        # same projection module
     assert lgm.body.first.w_x is not None and gcn.first.w_x is not None   # both read the features
     assert lgm.body.first.k == gcn.first.k == 1
@@ -177,12 +191,13 @@ def test_full_pipeline_runs_identically_shaped_for_both_bodies():
     ds = synthetic(n_genes=30, n_samples=20)
     test_c, val_c, train_c = tcga9.folds(CANCERS)[0]
     rows = {}
-    for body in ("lgm", "edgegcn"):
+    for body in BODIES:
         m = tcga9.build_model(body, CFG, 0)
         s = tcga9.pretrain(m, tcga9.ssl_corpus(ds, train_c), CFG, "cpu", 0, log=lambda *_: None)
         f = tcga9.translate(m, ds, train_c, val_c, CFG, "cpu", 0, log=lambda *_: None)
         rows[body] = {**s, **f, **tcga9.test(m, ds, test_c, "cpu")}
-    assert set(rows["lgm"]) == set(rows["edgegcn"])
+    for body in BODIES:
+        assert set(rows[body]) == set(rows["lgm"]), f"{body} wrote a different row schema"
     for body in rows:
         assert rows[body]["ssl_graphs"] == 6 and rows[body]["ssl_epochs"] == 2
         assert math.isfinite(rows[body]["auc_changed"]) and math.isfinite(rows[body]["ap_changed"])
