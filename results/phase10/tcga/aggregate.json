@@ -1,0 +1,478 @@
+{
+ "bodies": {
+  "lgm": {
+   "n_cancers": 11,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "n_params": [
+    812176
+   ],
+   "auc_changed": {
+    "mean": 0.7034141492456181,
+    "se": 0.020790134056747896
+   },
+   "ap_changed": {
+    "mean": 0.27906923111699794,
+    "se": 0.02872521855312666
+   },
+   "auc": {
+    "mean": 0.7463279332412948,
+    "se": 0.01905802809948684
+   },
+   "auc_direction": {
+    "mean": 0.4278687346626279,
+    "se": 0.06526369262446215
+   }
+  },
+  "lgm_rrwp": {
+   "n_cancers": 11,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "n_params": [
+    812432
+   ],
+   "auc_changed": {
+    "mean": 0.7313910208310009,
+    "se": 0.01852152249261863
+   },
+   "ap_changed": {
+    "mean": 0.30862188638284954,
+    "se": 0.03209779526125392
+   },
+   "auc": {
+    "mean": 0.7854047923608136,
+    "se": 0.015595199518962613
+   },
+   "auc_direction": {
+    "mean": 0.3887563543838697,
+    "se": 0.05253715345602701
+   }
+  },
+  "edgegcn": {
+   "n_cancers": 11,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "n_params": [
+    810810
+   ],
+   "auc_changed": {
+    "mean": 0.7283550486918053,
+    "se": 0.015279346624501247
+   },
+   "ap_changed": {
+    "mean": 0.30014667164531295,
+    "se": 0.0250005953649131
+   },
+   "auc": {
+    "mean": 0.7771063965848618,
+    "se": 0.022533245610394832
+   },
+   "auc_direction": {
+    "mean": 0.3467889588814311,
+    "se": 0.05169975137629962
+   }
+  },
+  "edgegcn_rwse": {
+   "n_cancers": 11,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "n_params": [
+    815562
+   ],
+   "auc_changed": {
+    "mean": 0.7261197018361751,
+    "se": 0.017115386236997623
+   },
+   "ap_changed": {
+    "mean": 0.29965645727445456,
+    "se": 0.026893046248385757
+   },
+   "auc": {
+    "mean": 0.7727790027607189,
+    "se": 0.021062267327665193
+   },
+   "auc_direction": {
+    "mean": 0.3551634876361296,
+    "se": 0.049209904902607154
+   }
+  }
+ },
+ "paired": {
+  "lgm_rrwp-lgm": {
+   "why": "does RRWP help the LGM",
+   "auc_changed": {
+    "n": 11,
+    "mean": 0.027976871585382788,
+    "se": 0.015299425171289063,
+    "t": 1.8286224006562188,
+    "p": 0.09739491931065347,
+    "wins": 7,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.020179236790403343,
+     "Colon Adenocarcinoma": -0.045502732022721704,
+     "Head & Neck Squamous Cell Carcinoma": -0.00703994898472271,
+     "Kidney Clear Cell Carcinoma": -0.02270873441023269,
+     "Kidney Papillary Cell Carcinoma": 0.11268943922598185,
+     "Liver Hepatocellular Carcinoma": 0.00947363195812323,
+     "Lung Adenocarcinoma": 0.03937892798505915,
+     "Lung Squamous Cell Carcinoma": 0.052749221000223834,
+     "Prostate Adenocarcinoma": 0.0277285649038157,
+     "Stomach Adenocarcinoma": 0.0953829864283986,
+     "Thyroid Carcinoma": 0.06577346814568874
+    }
+   },
+   "ap_changed": {
+    "n": 11,
+    "mean": 0.029552655265851567,
+    "se": 0.012600335730422194,
+    "t": 2.3453863371671733,
+    "p": 0.040961651953168046,
+    "wins": 9,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": 0.024671562622076204,
+     "Colon Adenocarcinoma": -0.03058580421573276,
+     "Head & Neck Squamous Cell Carcinoma": 0.021271500756019357,
+     "Kidney Clear Cell Carcinoma": 0.01759074913720679,
+     "Kidney Papillary Cell Carcinoma": 0.13306656632515285,
+     "Liver Hepatocellular Carcinoma": 0.012951049409278492,
+     "Lung Adenocarcinoma": 0.024684670461027958,
+     "Lung Squamous Cell Carcinoma": 0.0594926920266578,
+     "Prostate Adenocarcinoma": -0.009443558402219887,
+     "Stomach Adenocarcinoma": 0.02842613023049359,
+     "Thyroid Carcinoma": 0.042953649574406894
+    }
+   },
+   "auc": {
+    "n": 11,
+    "mean": 0.03907685911951902,
+    "se": 0.017839195731645614,
+    "t": 2.1905056543664196,
+    "p": 0.053290334638963946,
+    "wins": 8,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.02242348706300945,
+     "Colon Adenocarcinoma": -0.022238969293389643,
+     "Head & Neck Squamous Cell Carcinoma": -0.017589316712312675,
+     "Kidney Clear Cell Carcinoma": 0.005210329799944957,
+     "Kidney Papillary Cell Carcinoma": 0.051988274727153394,
+     "Liver Hepatocellular Carcinoma": 0.01887006589888751,
+     "Lung Adenocarcinoma": 0.032097854160504924,
+     "Lung Squamous Cell Carcinoma": 0.030235197355728105,
+     "Prostate Adenocarcinoma": 0.07500201087906322,
+     "Stomach Adenocarcinoma": 0.11692441841963819,
+     "Thyroid Carcinoma": 0.1617690721425007
+    }
+   },
+   "auc_direction": {
+    "n": 11,
+    "mean": -0.03911238027875821,
+    "se": 0.032402364151949956,
+    "t": -1.2070841527285425,
+    "p": 0.2551764955051785,
+    "wins": 4,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.14505685855659356,
+     "Colon Adenocarcinoma": -0.08630222652340172,
+     "Head & Neck Squamous Cell Carcinoma": 0.024475652086782707,
+     "Kidney Clear Cell Carcinoma": 0.0003867777208722348,
+     "Kidney Papillary Cell Carcinoma": 0.14167207639875407,
+     "Liver Hepatocellular Carcinoma": -0.10192521619342665,
+     "Lung Adenocarcinoma": -0.04332219478054461,
+     "Lung Squamous Cell Carcinoma": 0.12123753054811746,
+     "Prostate Adenocarcinoma": -0.10291590262851436,
+     "Stomach Adenocarcinoma": -0.026601842258980213,
+     "Thyroid Carcinoma": -0.2118839788794057
+    }
+   }
+  },
+  "edgegcn_rwse-edgegcn": {
+   "why": "does RWSE help the GCN",
+   "auc_changed": {
+    "n": 11,
+    "mean": -0.002235346855630235,
+    "se": 0.005486059329047593,
+    "t": -0.4074594752912201,
+    "p": 0.6922562671952572,
+    "wins": 6,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": 0.01147430555839668,
+     "Colon Adenocarcinoma": 0.006007196875520759,
+     "Head & Neck Squamous Cell Carcinoma": 0.002235575843138049,
+     "Kidney Clear Cell Carcinoma": 0.02657450351840185,
+     "Kidney Papillary Cell Carcinoma": -0.007813257738898516,
+     "Liver Hepatocellular Carcinoma": 0.0035143866638905896,
+     "Lung Adenocarcinoma": 0.01699780076514268,
+     "Lung Squamous Cell Carcinoma": -0.010862408972122761,
+     "Prostate Adenocarcinoma": -0.02089333658427206,
+     "Stomach Adenocarcinoma": -0.03656498698168198,
+     "Thyroid Carcinoma": -0.015258594359447875
+    }
+   },
+   "ap_changed": {
+    "n": 11,
+    "mean": -0.0004902143708584313,
+    "se": 0.010971013114393498,
+    "t": -0.04468268935120414,
+    "p": 0.9652399049501484,
+    "wins": 6,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": 0.08679359864844277,
+     "Colon Adenocarcinoma": 0.006362026910389784,
+     "Head & Neck Squamous Cell Carcinoma": 0.01133819910598427,
+     "Kidney Clear Cell Carcinoma": 0.016955873104019498,
+     "Kidney Papillary Cell Carcinoma": 0.0008972801458487223,
+     "Liver Hepatocellular Carcinoma": -0.029061063537845322,
+     "Lung Adenocarcinoma": 0.0017155566804376576,
+     "Lung Squamous Cell Carcinoma": -0.06191810393695263,
+     "Prostate Adenocarcinoma": -0.006873712686662314,
+     "Stomach Adenocarcinoma": -0.012323201550795304,
+     "Thyroid Carcinoma": -0.019278810962309878
+    }
+   },
+   "auc": {
+    "n": 11,
+    "mean": -0.004327393824142822,
+    "se": 0.005865610066551282,
+    "t": -0.7377568189914024,
+    "p": 0.4776170943900253,
+    "wins": 6,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.017919924745269045,
+     "Colon Adenocarcinoma": -0.002377205424254014,
+     "Head & Neck Squamous Cell Carcinoma": 0.014543625954694828,
+     "Kidney Clear Cell Carcinoma": 0.010992654926964995,
+     "Kidney Papillary Cell Carcinoma": 0.00858696885746868,
+     "Liver Hepatocellular Carcinoma": 0.007239317373706089,
+     "Lung Adenocarcinoma": 0.006966293261283729,
+     "Lung Squamous Cell Carcinoma": -0.0008583429718204139,
+     "Prostate Adenocarcinoma": -0.03862079103735483,
+     "Stomach Adenocarcinoma": -0.040559433235296205,
+     "Thyroid Carcinoma": 0.004405504974305141
+    }
+   },
+   "auc_direction": {
+    "n": 11,
+    "mean": 0.008374528754698452,
+    "se": 0.026403241282656087,
+    "t": 0.31717805647595093,
+    "p": 0.7576315031193358,
+    "wins": 5,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": 0.18072482121653766,
+     "Colon Adenocarcinoma": 0.016721570583609874,
+     "Head & Neck Squamous Cell Carcinoma": -0.0505374416743426,
+     "Kidney Clear Cell Carcinoma": 0.03314789538451335,
+     "Kidney Papillary Cell Carcinoma": -0.1629008928972242,
+     "Liver Hepatocellular Carcinoma": -0.017698322404489764,
+     "Lung Adenocarcinoma": 0.1069354733291211,
+     "Lung Squamous Cell Carcinoma": -0.009508775231326039,
+     "Prostate Adenocarcinoma": 0.03787177457030455,
+     "Stomach Adenocarcinoma": -0.012854777847457033,
+     "Thyroid Carcinoma": -0.02978150872756391
+    }
+   }
+  },
+  "lgm_rrwp-edgegcn_rwse": {
+   "why": "best-equipped vs best-equipped",
+   "auc_changed": {
+    "n": 11,
+    "mean": 0.005271318994825772,
+    "se": 0.015874120987552778,
+    "t": 0.3320699772264002,
+    "p": 0.7466917435902243,
+    "wins": 5,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.03365963823285123,
+     "Colon Adenocarcinoma": -0.059733488458818096,
+     "Head & Neck Squamous Cell Carcinoma": -0.051620926616784635,
+     "Kidney Clear Cell Carcinoma": -0.02008741565899541,
+     "Kidney Papillary Cell Carcinoma": 0.0927934557537341,
+     "Liver Hepatocellular Carcinoma": -0.021665573153869633,
+     "Lung Adenocarcinoma": 0.030961779914642884,
+     "Lung Squamous Cell Carcinoma": 0.03550006539005057,
+     "Prostate Adenocarcinoma": 0.05427731541776537,
+     "Stomach Adenocarcinoma": 0.06815835714442342,
+     "Thyroid Carcinoma": -0.03693942255621385
+    }
+   },
+   "ap_changed": {
+    "n": 11,
+    "mean": 0.008965429108394974,
+    "se": 0.011878441797404165,
+    "t": 0.754764746193749,
+    "p": 0.46779285696601913,
+    "wins": 6,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.006028338412902512,
+     "Colon Adenocarcinoma": -0.03676092274197848,
+     "Head & Neck Squamous Cell Carcinoma": 0.047063760715845004,
+     "Kidney Clear Cell Carcinoma": -0.003267611186114794,
+     "Kidney Papillary Cell Carcinoma": 0.055805730833320744,
+     "Liver Hepatocellular Carcinoma": -0.04349310660911099,
+     "Lung Adenocarcinoma": 0.03443169985421779,
+     "Lung Squamous Cell Carcinoma": 0.059534544997358496,
+     "Prostate Adenocarcinoma": 0.014012044792161449,
+     "Stomach Adenocarcinoma": 0.024731581905062167,
+     "Thyroid Carcinoma": -0.04740966395551416
+    }
+   },
+   "auc": {
+    "n": 11,
+    "mean": 0.012625789600094821,
+    "se": 0.01838494342670876,
+    "t": 0.686746176316903,
+    "p": 0.5078542751640611,
+    "wins": 6,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.03604746572658735,
+     "Colon Adenocarcinoma": -0.04299104992084535,
+     "Head & Neck Squamous Cell Carcinoma": -0.10187448912403729,
+     "Kidney Clear Cell Carcinoma": -0.0048025948689676135,
+     "Kidney Papillary Cell Carcinoma": 0.07184283811477898,
+     "Liver Hepatocellular Carcinoma": -0.01365275283712375,
+     "Lung Adenocarcinoma": 0.02189347453146595,
+     "Lung Squamous Cell Carcinoma": 0.01162786102982205,
+     "Prostate Adenocarcinoma": 0.05737672468353261,
+     "Stomach Adenocarcinoma": 0.06866925977174976,
+     "Thyroid Carcinoma": 0.10684187994725503
+    }
+   },
+   "auc_direction": {
+    "n": 11,
+    "mean": 0.033592866747740154,
+    "se": 0.03798648161740827,
+    "t": 0.8843374094521396,
+    "p": 0.3972780818966919,
+    "wins": 7,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": 0.02001363385868682,
+     "Colon Adenocarcinoma": -0.027621962825415264,
+     "Head & Neck Squamous Cell Carcinoma": 0.10496525294445935,
+     "Kidney Clear Cell Carcinoma": -0.11924177885153131,
+     "Kidney Papillary Cell Carcinoma": 0.13991153098712494,
+     "Liver Hepatocellular Carcinoma": 0.028664401209534174,
+     "Lung Adenocarcinoma": 0.19724162176759769,
+     "Lung Squamous Cell Carcinoma": 0.13450507409181234,
+     "Prostate Adenocarcinoma": 0.12570218637965347,
+     "Stomach Adenocarcinoma": -0.007710466244939762,
+     "Thyroid Carcinoma": -0.2269079590918407
+    }
+   }
+  },
+  "lgm-edgegcn": {
+   "why": "Phase 9 replication check",
+   "auc_changed": {
+    "n": 11,
+    "mean": -0.02494089944618725,
+    "se": 0.012168453166248996,
+    "t": -2.0496359812900886,
+    "p": 0.06754944785794514,
+    "wins": 3,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.0020060958840512066,
+     "Colon Adenocarcinoma": -0.008223559560575633,
+     "Head & Neck Squamous Cell Carcinoma": -0.042345401788923875,
+     "Kidney Clear Cell Carcinoma": 0.029195822269639127,
+     "Kidney Papillary Cell Carcinoma": -0.027709241211146263,
+     "Liver Hepatocellular Carcinoma": -0.027624818448102273,
+     "Lung Adenocarcinoma": 0.00858065269472641,
+     "Lung Squamous Cell Carcinoma": -0.028111564582296023,
+     "Prostate Adenocarcinoma": 0.005655413929677611,
+     "Stomach Adenocarcinoma": -0.06378961626565716,
+     "Thyroid Carcinoma": -0.11797148506135047
+    }
+   },
+   "ap_changed": {
+    "n": 11,
+    "mean": -0.02107744052831503,
+    "se": 0.01632318877292176,
+    "t": -1.2912575368410866,
+    "p": 0.22566366246075276,
+    "wins": 5,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": 0.056093697613464055,
+     "Colon Adenocarcinoma": 0.0001869083841440633,
+     "Head & Neck Squamous Cell Carcinoma": 0.03713045906580992,
+     "Kidney Clear Cell Carcinoma": -0.0039024872193020865,
+     "Kidney Papillary Cell Carcinoma": -0.07636355534598338,
+     "Liver Hepatocellular Carcinoma": -0.0855052195562348,
+     "Lung Adenocarcinoma": 0.01146258607362749,
+     "Lung Squamous Cell Carcinoma": -0.06187625096625193,
+     "Prostate Adenocarcinoma": 0.01658189050771902,
+     "Stomach Adenocarcinoma": -0.016017749876226728,
+     "Thyroid Carcinoma": -0.10964212449223093
+    }
+   },
+   "auc": {
+    "n": 11,
+    "mean": -0.03077846334356702,
+    "se": 0.010187354421478126,
+    "t": -3.0212420291058497,
+    "p": 0.012868140246567553,
+    "wins": 2,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": -0.03154390340884694,
+     "Colon Adenocarcinoma": -0.02312928605170972,
+     "Head & Neck Squamous Cell Carcinoma": -0.06974154645702979,
+     "Kidney Clear Cell Carcinoma": 0.0009797302580524248,
+     "Kidney Papillary Cell Carcinoma": 0.02844153224509427,
+     "Liver Hepatocellular Carcinoma": -0.025283501362305172,
+     "Lung Adenocarcinoma": -0.003238086367755244,
+     "Lung Squamous Cell Carcinoma": -0.019465679297726468,
+     "Prostate Adenocarcinoma": -0.05624607723288544,
+     "Stomach Adenocarcinoma": -0.08881459188318463,
+     "Thyroid Carcinoma": -0.050521687220940525
+    }
+   },
+   "auc_direction": {
+    "n": 11,
+    "mean": 0.08107977578119682,
+    "se": 0.05178725536421494,
+    "t": 1.5656318376204785,
+    "p": 0.14850286440869442,
+    "wins": 8,
+    "per_cancer": {
+     "Breast Invasive Carcinoma": 0.34579531363181804,
+     "Colon Adenocarcinoma": 0.07540183428159633,
+     "Head & Neck Squamous Cell Carcinoma": 0.02995215918333405,
+     "Kidney Clear Cell Carcinoma": -0.08648066118789019,
+     "Kidney Papillary Cell Carcinoma": -0.16466143830885333,
+     "Liver Hepatocellular Carcinoma": 0.11289129499847106,
+     "Lung Adenocarcinoma": 0.3474992898772634,
+     "Lung Squamous Cell Carcinoma": 0.003758768312368821,
+     "Prostate Adenocarcinoma": 0.2664898635784724,
+     "Stomach Adenocarcinoma": 0.006036598166583418,
+     "Thyroid Carcinoma": -0.044805488939998916
+    }
+   }
+  }
+ },
+ "paired_by_seed": {
+  "n": 55,
+  "mean": 0.00527131899482576,
+  "se": 0.010236980352455773,
+  "t": 0.5149290917180681,
+  "p": 0.6087040145310413,
+  "wins": 28
+ }
+}
