@@ -1,0 +1,26 @@
+# Phase 9 -- TCGA normal -> tumour translation: the LGM vs a capacity-matched edge-aware GCN under
+# identical treatment (g2l/tcga9.py). Everything below applies to BOTH bodies.
+density: 0.01            # the Phase-7 main protocol; the graphs are rebuilt bit-exactly from expression
+
+# --- input contract, identical for both bodies ---
+x_dim: 2                 # per-gene (mean, std) log2-TPM over the input condition's samples, z-scored
+                         # edge value k=1: the signed Spearman rho on each edge of the input graph
+
+# --- the LGM's width; the edge-GCN's width is chosen to match its parameter count ---
+d: 128
+heads: 4
+layers: 4
+dropout: 0.1
+
+# --- self-supervision: masked-cell reconstruction on the 18 training-cancer graphs, per fold ---
+mask_frac: 0.15
+ssl_epochs: 100          # fixed; no held-out set exists that would not leak selection
+
+# --- fine-tuning: stratified pos-weighted BCE (Phase 7B), select on the validation cancer ---
+lr: 1.0e-3
+weight_decay: 0.01
+warmup: 100
+clip: 1.0
+max_epochs: 300
+patience: 30
+seeds: [0, 1, 2]

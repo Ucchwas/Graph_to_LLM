@@ -57,7 +57,7 @@ class RawGraph:
     edge_index: torch.Tensor
     edge_value: torch.Tensor | None = None
     batch: torch.Tensor | None = None
-    x: torch.Tensor | None = None      # [n, F] categorical node features (e.g. OGB atom features)
+    x: torch.Tensor | None = None      # [n, F] node features: categorical (atom_dims) or continuous (x_dim)
 
     @staticmethod
     def from_dense(A: torch.Tensor, edge_value: torch.Tensor | None = None) -> "RawGraph":
@@ -125,9 +125,14 @@ class NodeEdgeProjection(nn.Module):
     to 31 (Amazon Photo). Edge features are symmetric in the endpoints."""
 
     def __init__(self, d: int, k: int = 1, freqs: int = 8, degree_init: bool = True, d_rni: int = 0,
-                 atom_dims: list[int] | None = None):
+                 atom_dims: list[int] | None = None, x_dim: int = 0):
         super().__init__()
+        assert not (atom_dims and x_dim), "node features are categorical (atom_dims) OR continuous (x_dim)"
         self.k, self.degree_init, self.d_rni = k, degree_init, d_rni
+        # Continuous per-node features (e.g. a gene's expression statistics), one linear map shared
+        # by every node. Like the atom embeddings this is indexed by what the node IS, never by
+        # which node it is, so it carries no node identity and the model stays size-independent.
+        self.w_x = nn.Linear(x_dim, d) if x_dim else None
         # One embedding per categorical node-feature column, summed -- OGB's AtomEncoder. Indexed by
         # FEATURE VALUE, never by node index: two nodes with the same atom type get the same vector,
         # so this cannot carry node identity and the model stays size-independent. That is the
@@ -167,6 +172,9 @@ class NodeEdgeProjection(nn.Module):
         if self.atom is not None:
             assert g.x is not None, "atom_dims set but the graph carries no node features"
             h = h + sum(emb(g.x[:, i]) for i, emb in enumerate(self.atom))
+        if self.w_x is not None:
+            assert g.x is not None, "x_dim set but the graph carries no node features"
+            h = h + self.w_x(g.x.to(h.dtype))
         if self.w_rni is not None:
             assert z is not None, "d_rni > 0: pass the random node states explicitly (see the tests)"
             h = h + self.w_rni(z)
@@ -312,10 +320,10 @@ class ISETBody(nn.Module):
 
     def __init__(self, d: int, layers: int = 4, heads: int = 8, k: int = 1, dropout: float = 0.0,
                  degree_init: bool = True, d_rni: int = 0, edges: bool = True,
-                 atom_dims: list[int] | None = None, sequential: bool = False):
+                 atom_dims: list[int] | None = None, sequential: bool = False, x_dim: int = 0):
         super().__init__()
         self.first = NodeEdgeProjection(d, k=k, degree_init=degree_init, d_rni=d_rni,
-                                        atom_dims=atom_dims)
+                                        atom_dims=atom_dims, x_dim=x_dim)
         self.enc = nn.Module()
         self.enc.layers = nn.ModuleList([ISETLayer(d, heads, dropout, sequential) for _ in range(layers)])
         self.edges = edges  # False = the no-edge control: identical model with edge states removed
@@ -342,12 +350,12 @@ class LGM(nn.Module):
     def __init__(self, d: int = 256, layers: int = 4, heads: int = 8, k: int = 1,
                  dropout: float = 0.0, degree_init: bool = True, d_rni: int = 0,
                  edges: bool = True, seed: int | None = None,
-                 atom_dims: list[int] | None = None, sequential: bool = False):
+                 atom_dims: list[int] | None = None, sequential: bool = False, x_dim: int = 0):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
         self.body = ISETBody(d, layers, heads, k, dropout, degree_init, d_rni, edges, atom_dims,
-                             sequential)
+                             sequential, x_dim)
         self.dec_norm = nn.LayerNorm(d)
         nn.init.constant_(self.dec_norm.weight, 1 / math.sqrt(d))
         nn.init.zeros_(self.dec_norm.bias)

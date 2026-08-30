@@ -136,7 +136,8 @@ class GCNBaseline(torch.nn.Module):
 
     needs_graph = True
 
-    def __init__(self, d: int, layers: int = 4, k: int = 1, dropout: float = 0.0, seed: int | None = None):
+    def __init__(self, d: int, layers: int = 4, k: int = 1, dropout: float = 0.0, seed: int | None = None,
+                 x_dim: int = 0):
         from torch_geometric.nn import GCNConv
 
         super().__init__()
@@ -145,7 +146,7 @@ class GCNBaseline(torch.nn.Module):
         from g2l.decoders import D1Bilinear
         from g2l.lgm import NodeEdgeProjection
 
-        self.first = NodeEdgeProjection(d, k=k)
+        self.first = NodeEdgeProjection(d, k=k, x_dim=x_dim)
         self.convs = torch.nn.ModuleList([GCNConv(d, d) for _ in range(layers)])
         self.norms = torch.nn.ModuleList([torch.nn.LayerNorm(d) for _ in range(layers)])
         self.dec_norm = torch.nn.LayerNorm(d)
@@ -211,14 +212,15 @@ class EdgeGCNBaseline(torch.nn.Module):
 
     needs_graph = True
 
-    def __init__(self, d: int, layers: int = 4, k: int = 1, dropout: float = 0.0, seed: int | None = None):
+    def __init__(self, d: int, layers: int = 4, k: int = 1, dropout: float = 0.0, seed: int | None = None,
+                 x_dim: int = 0):
         super().__init__()
         if seed is not None:
             torch.manual_seed(seed)
         from g2l.decoders import D1Bilinear
         from g2l.lgm import NodeEdgeProjection
 
-        self.first = NodeEdgeProjection(d, k=k)
+        self.first = NodeEdgeProjection(d, k=k, x_dim=x_dim)
         self.convs = torch.nn.ModuleList([EdgeGCNLayer(d) for _ in range(layers)])
         self.norms = torch.nn.ModuleList([torch.nn.LayerNorm(d) for _ in range(layers)])
         self.dec_norm = torch.nn.LayerNorm(d)
@@ -248,16 +250,19 @@ BODIES = {"gcn": GCNBaseline, "edgegcn": EdgeGCNBaseline}
 
 
 def matched_width(target_params: int, layers: int, k: int, kind: str = "gcn",
-                  lo: int = 64, hi: int = 2048) -> int:
+                  lo: int = 64, hi: int = 2048, **kw) -> int:
     """Width whose parameter count is nearest `target_params` (step 8; the convolutional bodies have
-    no attention-head divisibility constraint, so a finer grid gives a tighter match)."""
+    no attention-head divisibility constraint, so a finer grid gives a tighter match). `kw` is
+    forwarded to the body (e.g. x_dim), so the match counts the same input path the run will use."""
     cls = BODIES[kind]
-    best, best_gap = lo, float("inf")
-    for d in range(lo, hi + 1, 8):   # step 8: the baselines have no head-divisibility constraint
-        n = sum(p.numel() for p in cls(d, layers, k).parameters())
-        if abs(n - target_params) < best_gap:
-            best, best_gap = d, abs(n - target_params)
-    return best
+
+    def gap(d):
+        return abs(sum(p.numel() for p in cls(d, layers, k, **kw).parameters()) - target_params)
+
+    # coarse pass at step 8, then a fine pass at step 1 around the winner: parameters grow ~d^2,
+    # so at small widths one step of 8 moves the count by several percent
+    coarse = min(range(lo, hi + 1, 8), key=gap)
+    return min(range(max(lo, coarse - 8), min(hi, coarse + 8) + 1), key=gap)
 
 
 PRIORS = ("common_neighbours", "degree", "neg_degree", "random")
