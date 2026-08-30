@@ -250,18 +250,23 @@ BODIES = {"gcn": GCNBaseline, "edgegcn": EdgeGCNBaseline}
 
 
 def matched_width(target_params: int, layers: int, k: int, kind: str = "gcn",
-                  lo: int = 64, hi: int = 2048, **kw) -> int:
-    """Width whose parameter count is nearest `target_params` (step 8; the convolutional bodies have
-    no attention-head divisibility constraint, so a finer grid gives a tighter match). `kw` is
-    forwarded to the body (e.g. x_dim), so the match counts the same input path the run will use."""
+                  lo: int = 64, hi: int = 2048, refine: bool = False, **kw) -> int:
+    """Width whose parameter count is nearest `target_params`, scanned at step 8. `kw` is forwarded
+    to the body (e.g. x_dim), so the match counts the same input path the run will use.
+
+    `refine` adds a step-1 pass around the step-8 winner. Parameters grow ~d^2, so at small widths
+    one step of 8 moves the count by several percent, and Phase 9 needs the tighter match (0.17 %
+    rather than 0.83 %). It is OPT-IN because turning it on unconditionally silently changes the
+    Phase-8 baseline widths -- gcn 800 -> 799, edgegcn 592 -> 596 -- and those widths are part of
+    committed, published rows. Default off keeps every Phase-8 row reproducible from this code."""
     cls = BODIES[kind]
 
     def gap(d):
         return abs(sum(p.numel() for p in cls(d, layers, k, **kw).parameters()) - target_params)
 
-    # coarse pass at step 8, then a fine pass at step 1 around the winner: parameters grow ~d^2,
-    # so at small widths one step of 8 moves the count by several percent
     coarse = min(range(lo, hi + 1, 8), key=gap)
+    if not refine:
+        return coarse
     return min(range(max(lo, coarse - 8), min(hi, coarse + 8) + 1), key=gap)
 
 

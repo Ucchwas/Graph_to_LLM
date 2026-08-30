@@ -71,9 +71,12 @@ def test_translation_input_is_the_normal_graph_and_never_sees_the_tumour_graph()
     c = "A"
     raw = tcga9.graph(ds, c, "normal").raw()
     A_n = tcga9.graph(ds, c, "normal").dense()
-    assert torch.equal(RawGraph.from_dense(A_n).edge_index, torch.sort(raw.edge_index, dim=1)[0][:, torch.argsort(raw.edge_index[0] * ds["n"] + raw.edge_index[1])]) or \
-        torch.equal(raw.edge_index[:, torch.argsort(raw.edge_index[0] * ds["n"] + raw.edge_index[1])],
-                    A_n.nonzero().T)
+    A_t = tcga9.graph(ds, c, "tumour").dense()
+    # the edges the model is handed are exactly the normal graph's, and are NOT the tumour graph's
+    seen = torch.zeros(ds["n"], ds["n"])
+    seen[raw.edge_index[0], raw.edge_index[1]] = 1.0
+    assert torch.equal(seen, A_n)
+    assert not torch.equal(seen, A_t), "vacuous: the two conditions built the same graph"
     # mutate the tumour graph in place; the input tensors are untouched
     t = tcga9.graph(ds, c, "tumour")
     t.edge_index = t.edge_index[:, :2]

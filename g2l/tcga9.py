@@ -145,7 +145,9 @@ def build_model(kind: str, cfg: dict, seed: int):
         return LGM(d=cfg["d"], heads=cfg["heads"], **common)
     if kind == "edgegcn":
         ref = sum(p.numel() for p in LGM(d=cfg["d"], heads=cfg["heads"], **common).parameters())
-        w = matched_width(ref, cfg["layers"], 1, kind="edgegcn", x_dim=cfg["x_dim"])
+        # refine=True: at this width step 8 lands 0.83 % away and step 1 lands 0.17 %. Phase 8's
+        # calls deliberately leave it off so their published widths still reproduce.
+        w = matched_width(ref, cfg["layers"], 1, kind="edgegcn", refine=True, x_dim=cfg["x_dim"])
         return EdgeGCNBaseline(w, **common)
     raise ValueError(kind)
 
