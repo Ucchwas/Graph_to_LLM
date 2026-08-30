@@ -1,7 +1,9 @@
 #!/bin/bash
 # Phase 10 MolHIV stage 1 of 5: 100-epoch masked-attribute SSL on the TRAINING split only,
-# selection seeds 0-2, for each of the 6 arms x 3 widths. One task per (arm, width).
-# Usage: sbatch --array=0-17 --export=ALL,G2L_COMMIT=<hash> slurm/phase10m_pretrain_select.sbatch
+# selection seeds 0-2, all three widths. ONE TASK PER ARM (6 tasks) -- the account cap is 32
+# submitted jobs, shared, and array tasks count individually, so the array is kept small.
+# Worst case (LGM, 9 runs x ~0.7 h measured in 8H) is ~6.5 h, inside the limit.
+# Usage: sbatch --array=0-5 --export=ALL,G2L_COMMIT=<hash> slurm/phase10m_pretrain_select.sbatch
 #SBATCH --job-name=g2l-p10mP1
 #SBATCH --account=marlowe-m000211-pm06
 #SBATCH --partition=batch
@@ -26,8 +28,7 @@ echo "job ${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID} task $T on $SLURMD_NODENAME | cod
 ARMS=(lgm lgm_rrwp gin gin_rwse gcn gcn_rwse)
 LGMW=(64 128 256)
 OGBW=(100 200 300)
+A=${ARMS[$T]}
+case $A in lgm*) WS=("${LGMW[@]}") ;; *) WS=("${OGBW[@]}") ;; esac
 R="python -u -m g2l.run_phase10 --config configs/phase10_molhiv.yaml"
-A=${ARMS[$((T / 3))]}
-case $A in lgm*) D=${LGMW[$((T % 3))]} ;; *) D=${OGBW[$((T % 3))]} ;; esac
-echo "arm=$A d=$D"
-$R --stage pretrain --arm "$A" --d "$D" --seeds 0,1,2
+for D in "${WS[@]}"; do echo "=== pretrain arm=$A d=$D"; $R --stage pretrain --arm "$A" --d "$D" --seeds 0,1,2; done

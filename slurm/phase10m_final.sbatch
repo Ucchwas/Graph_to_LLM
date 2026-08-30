@@ -1,7 +1,7 @@
 #!/bin/bash
 # Phase 10 MolHIV stage 5 of 5: the frozen configuration per arm, 10 seeds (OGB rule),
 # train -> restore the best-validation checkpoint -> read the TEST split ONCE per seed.
-# 12 tasks: 5 seeds per task. Submitted by stage 3 with a dependency on stage 4.
+# One task per arm (6 tasks). Submitted by stage 3 with a dependency on stage 4.
 #SBATCH --job-name=g2l-p10mF
 #SBATCH --account=marlowe-m000211-pm06
 #SBATCH --partition=batch
@@ -26,8 +26,8 @@ echo "job ${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID} task $T on $SLURMD_NODENAME | cod
 ARMS=(lgm lgm_rrwp gin gin_rwse gcn gcn_rwse)
 LGMW=(64 128 256)
 OGBW=(100 200 300)
+A=${ARMS[$T]}
+case $A in lgm*) WS=("${LGMW[@]}") ;; *) WS=("${OGBW[@]}") ;; esac
 R="python -u -m g2l.run_phase10 --config configs/phase10_molhiv.yaml"
-A=${ARMS[$((T / 2))]}
-S=("0,1,2,3,4" "5,6,7,8,9")
-echo "arm=$A seeds=${S[$((T % 2))]}"
-$R --stage final --arm "$A" --d best --seeds "${S[$((T % 2))]}" --confirm-final
+echo "=== final arm=$A"
+$R --stage final --arm "$A" --d best --seeds 0,1,2,3,4,5,6,7,8,9 --confirm-final

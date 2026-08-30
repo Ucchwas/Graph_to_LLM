@@ -1,6 +1,6 @@
 #!/bin/bash
 # Phase 10 MolHIV stage 4 of 5: SSL for seeds 3-9, only at each arm winning width.
-# 12 tasks: 2 seed slices per arm. Submitted by stage 3.
+# One task per arm (6 tasks). Submitted by stage 3.
 #SBATCH --job-name=g2l-p10mP2
 #SBATCH --account=marlowe-m000211-pm06
 #SBATCH --partition=batch
@@ -10,7 +10,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --output=/scratch/m000211-pm06/%u/logs/%x-%A_%a.out
-#SBATCH --time=20:00:00
+#SBATCH --time=16:00:00
 set -euo pipefail
 module load slurm
 SCR=/scratch/m000211-pm06/$USER
@@ -25,8 +25,8 @@ echo "job ${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID} task $T on $SLURMD_NODENAME | cod
 ARMS=(lgm lgm_rrwp gin gin_rwse gcn gcn_rwse)
 LGMW=(64 128 256)
 OGBW=(100 200 300)
+A=${ARMS[$T]}
+case $A in lgm*) WS=("${LGMW[@]}") ;; *) WS=("${OGBW[@]}") ;; esac
 R="python -u -m g2l.run_phase10 --config configs/phase10_molhiv.yaml"
-A=${ARMS[$((T / 2))]}
-S=("3,4,5" "6,7,8,9")
-echo "arm=$A seeds=${S[$((T % 2))]}"
-$R --stage pretrain --arm "$A" --d best --seeds "${S[$((T % 2))]}"
+echo "=== pretrain-rest arm=$A"
+$R --stage pretrain --arm "$A" --d best --seeds 3,4,5,6,7,8,9

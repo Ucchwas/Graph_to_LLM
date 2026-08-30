@@ -1,6 +1,7 @@
 #!/bin/bash
 # Phase 10 MolHIV stage 2 of 5: the one free knob (width) on VALIDATION, 3 paired seeds,
-# every arm treated identically. Cannot reach the test split. Submitted by the chain job.
+# all three widths, every arm treated identically. Cannot reach the test split.
+# One task per arm (6 tasks). Submitted by the chain job.
 #SBATCH --job-name=g2l-p10mS
 #SBATCH --account=marlowe-m000211-pm06
 #SBATCH --partition=batch
@@ -10,7 +11,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --output=/scratch/m000211-pm06/%u/logs/%x-%A_%a.out
-#SBATCH --time=10:00:00
+#SBATCH --time=12:00:00
 set -euo pipefail
 module load slurm
 SCR=/scratch/m000211-pm06/$USER
@@ -25,8 +26,7 @@ echo "job ${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID} task $T on $SLURMD_NODENAME | cod
 ARMS=(lgm lgm_rrwp gin gin_rwse gcn gcn_rwse)
 LGMW=(64 128 256)
 OGBW=(100 200 300)
+A=${ARMS[$T]}
+case $A in lgm*) WS=("${LGMW[@]}") ;; *) WS=("${OGBW[@]}") ;; esac
 R="python -u -m g2l.run_phase10 --config configs/phase10_molhiv.yaml"
-A=${ARMS[$((T / 3))]}
-case $A in lgm*) D=${LGMW[$((T % 3))]} ;; *) D=${OGBW[$((T % 3))]} ;; esac
-echo "arm=$A d=$D"
-$R --stage select --arm "$A" --d "$D" --seeds 0,1,2
+for D in "${WS[@]}"; do echo "=== select arm=$A d=$D"; $R --stage select --arm "$A" --d "$D" --seeds 0,1,2; done

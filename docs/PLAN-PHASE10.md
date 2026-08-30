@@ -171,16 +171,22 @@ pretrained checkpoint carries are included, as in 8H.
 
 ### Stages (Slurm, Marlowe, one chain)
 
-| stage | file | tasks | per task | what |
+Every stage is **one task per arm** (6 tasks), each looping that arm's three widths. Per-run costs
+are Phase 8H's measured wallclocks: SSL 0.63–0.70 h (LGM) / 0.26–0.28 h (GIN, GCN); fine-tune
+0.13–0.30 h (LGM) / 0.08–0.10 h (GNN).
+
+| stage | file | tasks | per task (worst = LGM) | what |
 |---|---|---|---|---|
-| 1 | `phase10m_pretrain_select.sbatch` | 6 (one per arm) | 3 widths × seeds 0–2 SSL, ≈ 2.5 h | selection-seed checkpoints |
-| 2 | `phase10m_select.sbatch` | 6 | 3 widths × seeds 0–2 fine-tune, ≈ 1 h | validation rows, `afterok:1` |
-| 3 | `phase10m_launch.sbatch` | 1 | `g2l.launch10 --commit` | reads 18 rows, writes `winners.json`, submits 4 + 5 |
-| 4 | `phase10m_pretrain_rest.sbatch` | 6 | seeds 3–9 SSL at the chosen width, ≈ 2 h | remaining checkpoints |
-| 5 | `phase10m_final.sbatch` | 12 (arm × 5-seed halves) | 5 fine-tunes + one test read each, ≈ 40 min | the table, `afterok:4` |
+| 1 | `phase10m_pretrain_select.sbatch` | 6 | 9 SSL runs, ≈ 6.5 h | selection-seed checkpoints |
+| — | `phase10m_chain.sbatch` | 1 | — | `afterok:1`; submits 2 and 3 once stage 1 has drained |
+| 2 | `phase10m_select.sbatch` | 6 | 9 fine-tunes, ≈ 2.7 h | validation rows |
+| 3 | `phase10m_launch.sbatch` | 1 | `launch10 --step select` | reads 18 rows, writes `winners.json`, submits 4 + 5 |
+| 4 | `phase10m_pretrain_rest.sbatch` | 6 | 7 SSL runs, ≈ 4.9 h | remaining checkpoints |
+| 5 | `phase10m_final.sbatch` | 6 | 10 fine-tunes + one test read each, ≈ 3 h | the table, `afterok:4` |
 
 ≈ 96 SSL runs + 114 fine-tunes ≈ **40–45 GPU-h** (8H: 14 GPU-h for 36 + 45), wall-clock ≈ 7 h of
-compute plus queue time.
+compute plus queue time. RRWP's own cost is negligible at both scales (≈ 1 min of matmul over a
+100-epoch molhiv SSL run; ≈ 15 s over a TCGA one).
 
 ### Report — `results/phase10/molhiv/RESULTS.md`
 
@@ -233,8 +239,10 @@ Secondary: pairing every (cancer, seed), n = 55. Per-cancer table for the primar
 
 ## 5. Queue plan (the 32-submitted-jobs account cap is shared)
 
-Submit TCGA first (11 tasks, short), then molhiv stages 1–3 (13 tasks) → 24 in queue. The launcher
-submits stages 4–5 (18 tasks) only after 1–2 complete, by which time TCGA has drained. Peak ≤ 24.
+QOS `medium`: `MaxSubmitJobsPerAccount` = 32, shared with teammates, and **array tasks count
+individually** — measured, not assumed (`sacctmgr show qos`). Wave one is TCGA (11) + molhiv stage 1
+(6) + the chain job (1) = **18**; the chain then adds stage 2 (6) + stage 3 (1); stage 3 adds
+stages 4 (6) + 5 (6). Peak footprint 18, leaving ample room for the ~5 jobs teammates typically hold.
 All jobs carry `G2L_COMMIT=<hash>`; the Marlowe checkout is pinned to that hash for the whole phase.
 
 ## 6. Files

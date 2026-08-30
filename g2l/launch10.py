@@ -14,9 +14,11 @@ rather than borne by one.
 
 Refuses to submit if any row is missing: a failed task must be looked at, not papered over.
 
-The account's submitted-job cap is 32, shared, and array tasks count individually. The chain is
-sized to respect it: stage 1 (18) + this chain job (1) + the TCGA array (11) = 30 at wave one;
-stage 2 (18) + stage 3 (1) = 19 once stage 1 has drained; stages 4 (12) + 5 (12) = 24 after that.
+The account's submitted-job cap is 32, shared with teammates, and array tasks count individually.
+Every molhiv stage is therefore ONE TASK PER ARM -- 6 tasks, each looping that arm's three widths --
+rather than one per (arm, width). Measured 8H wallclocks make the worst task (LGM, 9 SSL runs at
+~0.7 h) about 6.5 h, well inside the limit. Footprint: TCGA (11) + stage 1 (6) + this chain job (1)
+= 18 at wave one, then stage 2 (6) + stage 3 (1) = 7, then stages 4 (6) + 5 (6) = 12.
 """
 import argparse
 import json
@@ -68,7 +70,7 @@ def main():
 
     if args.step == "chain":
         # stage 1 is already complete (this job depends on it); submit select, then the selector
-        a = sbatch(["sbatch", "--parsable", "--array=0-17", f"--export={export}",
+        a = sbatch(["sbatch", "--parsable", "--array=0-5", f"--export={export}",
                     "slurm/phase10m_select.sbatch"], args.dry_run)
         print(f"SELECT_JOB={a}", flush=True)
         b = sbatch(["sbatch", "--parsable", f"--dependency=afterok:{a}", f"--export={export}",
@@ -80,10 +82,10 @@ def main():
     ROWS.mkdir(parents=True, exist_ok=True)
     (ROWS / "winners.json").write_text(json.dumps(w, indent=1))
     print("selection:", json.dumps(w["width"]), flush=True)
-    a = sbatch(["sbatch", "--parsable", "--array=0-11", f"--export={export}",
+    a = sbatch(["sbatch", "--parsable", "--array=0-5", f"--export={export}",
                 "slurm/phase10m_pretrain_rest.sbatch"], args.dry_run)
     print(f"PRETRAIN_REST_JOB={a}", flush=True)
-    b = sbatch(["sbatch", "--parsable", "--array=0-11", f"--dependency=afterok:{a}",
+    b = sbatch(["sbatch", "--parsable", "--array=0-5", f"--dependency=afterok:{a}",
                 f"--export={export}", "slurm/phase10m_final.sbatch"], args.dry_run)
     print(f"FINAL_JOB={b}", flush=True)
     (ROWS / "winners.json").write_text(json.dumps({**w, "pretrain_rest_job": a, "final_job": b},
