@@ -1,0 +1,13 @@
+{
+ "lgm_d": 256,
+ "lgm_val_by_d": {
+  "64": 0.8314308576654256,
+  "128": 0.8278861699000588,
+  "256": 0.8352256025867137
+ },
+ "gin_val": 0.8314716833235352,
+ "gcn_val": 0.8368259683846103,
+ "rule": "LGM width = argmax validation mean over select_seeds; GIN/GCN pretrained (8G)",
+ "pretrain_rest_job": "455018",
+ "final_job": "455019"
+}
